@@ -27,6 +27,7 @@
 	],
 	"keywords": [
 		"hai",
+		"hai build",
 		"claude",
 		"dev",
 		"mcp",
@@ -37,7 +38,8 @@
 		"chatgpt",
 		"sonnet",
 		"ai",
-		"llama"
+		"llama",
+		"intelligent development"
 	],
 	"activationEvents": [
 		"onLanguage",
@@ -49,8 +51,8 @@
 		"walkthroughs": [
 			{
 				"id": "HAIWalkthrough",
-				"title": "Meet HAI, your new coding partner",
-				"description": "HAI codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
+				"title": "Meet HAI Build: Your Intelligent Coding Companion",
+				"description": "HAI Build codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
 				"steps": [
 					{
 						"id": "welcome",
@@ -99,10 +101,10 @@
 			}
 		],
 		"icons": {
-			"cline-icon": {
-				"description": "cline",
+			"hai-icon": {
+				"description": "HAI",
 				"default": {
-					"fontPath": "assets/icons/cline-bot.woff",
+					"fontPath": "assets/icons/hai-bot.woff",
 					"fontCharacter": "\\e900"
 				}
 			}
@@ -128,94 +130,97 @@
 		},
 		"commands": [
 			{
-				"command": "cline.plusButtonClicked",
+				"command": "hai.plusButtonClicked",
 				"title": "New Task",
 				"icon": "$(add)"
 			},
 			{
-				"command": "cline.mcpButtonClicked",
+				"command": "hai.mcpButtonClicked",
 				"title": "MCP Servers",
 				"icon": "$(server)"
 			},
 			{
-				"command": "cline.historyButtonClicked",
+				"command": "hai.historyButtonClicked",
 				"title": "History",
 				"icon": "$(history)"
 			},
 			{
-				"command": "cline.settingsButtonClicked",
+				"command": "hai.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "cline.dev.createTestTasks",
+				"command": "hai.dev.createTestTasks",
 				"title": "Create Test Tasks",
-				"category": "Cline",
-				"when": "cline.isDevMode"
+				"category": "HAI",
+				"when": "hai.isDevMode"
 			},
 			{
-				"command": "cline.dev.expireMcpOAuthTokens",
+				"command": "hai.dev.expireMcpOAuthTokens",
 				"title": "Expire MCP OAuth Tokens (for testing)",
-				"category": "Cline",
-				"when": "cline.isDevMode"
+				"category": "HAI",
+				"when": "hai.isDevMode"
 			},
 			{
-				"command": "cline.addToChat",
+				"command": "hai.addToChat",
 				"title": "Add to HAI",
-				"category": "Cline"
+				"category": "HAI"
 			},
 			{
-				"command": "cline.addTerminalOutputToChat",
+				"command": "hai.addTerminalOutputToChat",
 				"title": "Add to HAI",
-				"category": "Cline"
+				"category": "HAI"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "hai.focusChatInput",
 				"title": "Jump to Chat Input",
-				"category": "Cline"
+				"category": "HAI"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "hai.generateGitCommitMessage",
 				"title": "Generate Commit Message with HAI",
-				"category": "Cline",
-				"icon": "$(cline-icon)"
+				"category": "HAI",
+				"icon": {
+					"light": "assets/icons/hai-logo-mini.png",
+					"dark": "assets/icons/hai-logo-mini.png"
+				}
 			},
 			{
-				"command": "cline.abortGitCommitMessage",
-				"title": "Generate Commit Message with Cline - Stop",
-				"category": "Cline",
+				"command": "hai.abortGitCommitMessage",
+				"title": "Generate Commit Message with HAI - Stop",
+				"category": "HAI",
 				"icon": "$(debug-stop)"
 			},
 			{
-				"command": "cline.explainCode",
+				"command": "hai.explainCode",
 				"title": "Explain with HAI",
-				"category": "Cline"
+				"category": "HAI"
 			},
 			{
-				"command": "cline.improveCode",
+				"command": "hai.improveCode",
 				"title": "Improve with HAI",
-				"category": "Cline"
+				"category": "HAI"
 			},
 			{
-				"command": "cline.openWalkthrough",
+				"command": "hai.openWalkthrough",
 				"title": "Open Walkthrough",
-				"category": "Cline"
+				"category": "HAI"
 			},
 			{
-				"command": "cline.reconstructTaskHistory",
+				"command": "hai.reconstructTaskHistory",
 				"title": "Reconstruct Task History",
-				"category": "Cline"
+				"category": "HAI"
 			},
 			{
-				"command": "cline.reviewComment.reply",
+				"command": "hai.reviewComment.reply",
 				"title": "Reply",
-				"category": "Cline",
+				"category": "HAI",
 				"enablement": "!commentIsEmpty"
 			},
 			{
-				"command": "cline.reviewComment.addToChat",
+				"command": "hai.reviewComment.addToChat",
 				"title": "Add to HAI Chat",
-				"category": "Cline",
+				"category": "HAI",
 				"icon": "$(link-external)"
 			}
 		],
@@ -223,10 +228,10 @@
 			{
 				"command": "editor.action.submitComment",
 				"key": "enter",
-				"when": "commentEditorFocused && commentController == cline-ai-review && !commentIsEmpty"
+				"when": "commentEditorFocused && commentController == hai-ai-review && !commentIsEmpty"
 			},
 			{
-				"command": "cline.addToChat",
+				"command": "hai.addToChat",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -234,11 +239,11 @@
 				"when": "editorHasSelection"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "hai.generateGitCommitMessage",
 				"when": "config.git.enabled && scmProvider == git"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "hai.focusChatInput",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -249,77 +254,77 @@
 		"menus": {
 			"view/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "hai.plusButtonClicked",
 					"group": "navigation@1",
 					"when": "view == hai-build-codegen.SidebarProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "hai.mcpButtonClicked",
 					"group": "navigation@2",
 					"when": "view == hai-build-codegen.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "hai.historyButtonClicked",
 					"group": "navigation@3",
 					"when": "view == hai-build-codegen.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "hai.settingsButtonClicked",
 					"group": "navigation@6",
 					"when": "view == hai-build-codegen.SidebarProvider"
 				}
 			],
 			"editor/context": [
 				{
-					"command": "cline.addToChat",
+					"command": "hai.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
 				}
 			],
 			"terminal/context": [
 				{
-					"command": "cline.addTerminalOutputToChat",
+					"command": "hai.addTerminalOutputToChat",
 					"group": "navigation"
 				}
 			],
 			"scm/title": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "hai.generateGitCommitMessage",
 					"group": "navigation",
-					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+					"when": "config.git.enabled && scmProvider == git && !hai.isGeneratingCommit"
 				},
 				{
-					"command": "cline.abortGitCommitMessage",
+					"command": "hai.abortGitCommitMessage",
 					"group": "navigation",
-					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
+					"when": "config.git.enabled && scmProvider == git && hai.isGeneratingCommit"
 				}
 			],
 			"commandPalette": [
 				{
-					"command": "cline.generateGitCommitMessage",
-					"when": "config.git.enabled && !cline.isGeneratingCommit"
+					"command": "hai.generateGitCommitMessage",
+					"when": "config.git.enabled && !hai.isGeneratingCommit"
 				},
 				{
-					"command": "cline.abortGitCommitMessage",
-					"when": "config.git.enabled && cline.isGeneratingCommit"
+					"command": "hai.abortGitCommitMessage",
+					"when": "config.git.enabled && hai.isGeneratingCommit"
 				},
 				{
-					"command": "cline.reviewComment.reply",
+					"command": "hai.reviewComment.reply",
 					"when": "false"
 				}
 			],
 			"comments/commentThread/context": [
 				{
-					"command": "cline.reviewComment.reply",
+					"command": "hai.reviewComment.reply",
 					"group": "inline",
-					"when": "commentController == cline-ai-review"
+					"when": "commentController == hai-ai-review"
 				}
 			],
 			"comments/commentThread/title": [
 				{
-					"command": "cline.reviewComment.addToChat",
+					"command": "hai.reviewComment.addToChat",
 					"group": "inline",
-					"when": "commentController == cline-ai-review"
+					"when": "commentController == hai-ai-review"
 				}
 			]
 		},

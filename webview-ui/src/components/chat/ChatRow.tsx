@@ -420,7 +420,7 @@ export const ChatRowContent = memo(
 								color: errorColor,
 								marginBottom: "-1.5px",
 							}}></span>,
-						<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
+						<span style={{ color: errorColor, fontWeight: "bold" }}>HAI is having trouble...</span>,
 					]
 				case "command":
 					return [
@@ -430,7 +430,7 @@ export const ChatRowContent = memo(
 								color: normalColor,
 								marginBottom: "-1.5px",
 							}}></span>,
-						<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to execute this command:</span>,
+						<span style={{ color: normalColor, fontWeight: "bold" }}>HAI wants to execute this command:</span>,
 					]
 				case "use_mcp_server":
 					const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
@@ -448,7 +448,7 @@ export const ChatRowContent = memo(
 						<span
 							className="ph-no-capture"
 							style={{ color: normalColor, fontWeight: "bold", wordBreak: "break-word" }}>
-							Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
+							HAI wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
 							<code style={{ wordBreak: "break-all" }}>
 								{getMcpServerDisplayName(mcpServerUse.serverName, mcpMarketplaceCatalog)}
 							</code>{" "}
@@ -480,7 +480,7 @@ export const ChatRowContent = memo(
 								color: normalColor,
 								marginBottom: "-1.5px",
 							}}></span>,
-						<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
+						<span style={{ color: normalColor, fontWeight: "bold" }}>HAI has a question:</span>,
 					]
 				default:
 					return [null, null]
@@ -549,7 +549,7 @@ export const ChatRowContent = memo(
 								{toolIcon("edit")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
+								<span style={{ fontWeight: "bold" }}>HAI wants to edit this file:</span>
 							</div>
 							<CodeAccordian
 								// isLoading={message.partial}
@@ -567,7 +567,7 @@ export const ChatRowContent = memo(
 								{toolIcon("diff-removed")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>Cline wants to delete this file:</span>
+								<span style={{ fontWeight: "bold" }}>HAI wants to delete this file:</span>
 							</div>
 							<CodeAccordian
 								// isLoading={message.partial}
@@ -585,7 +585,7 @@ export const ChatRowContent = memo(
 								{toolIcon("new-file")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
+								<span style={{ fontWeight: "bold" }}>HAI wants to create a new file:</span>
 							</div>
 							<CodeAccordian
 								code={tool.content!}
@@ -605,8 +605,8 @@ export const ChatRowContent = memo(
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
-									{/* {message.type === "ask" ? "" : "Cline read this file:"} */}
-									Cline wants to read this file:
+									{/* {message.type === "ask" ? "" : "HAI read this file:"} */}
+									HAI wants to read this file:
 								</span>
 							</div>
 							<div
@@ -673,8 +673,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
 									{message.type === "ask"
-										? "Cline wants to view the top level files in this directory:"
-										: "Cline viewed the top level files in this directory:"}
+										? "HAI wants to view the top level files in this directory:"
+										: "HAI viewed the top level files in this directory:"}
 								</span>
 							</div>
 							<CodeAccordian
@@ -695,8 +695,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
 									{message.type === "ask"
-										? "Cline wants to recursively view all files in this directory:"
-										: "Cline recursively viewed all files in this directory:"}
+										? "HAI wants to recursively view all files in this directory:"
+										: "HAI recursively viewed all files in this directory:"}
 								</span>
 							</div>
 							<CodeAccordian
@@ -717,8 +717,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
 									{message.type === "ask"
-										? "Cline wants to view source code definition names used in this directory:"
-										: "Cline viewed source code definition names used in this directory:"}
+										? "HAI wants to view source code definition names used in this directory:"
+										: "HAI viewed source code definition names used in this directory:"}
 								</span>
 							</div>
 							<CodeAccordian
@@ -737,7 +737,7 @@ export const ChatRowContent = memo(
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
-									Cline wants to search this directory for{" "}
+									HAI wants to search this directory for{" "}
 									<code style={{ wordBreak: "break-all" }}>{tool.regex}</code>:
 								</span>
 							</div>
@@ -757,7 +757,7 @@ export const ChatRowContent = memo(
 								<span style={{ color: normalColor, marginBottom: "-1.5px" }}>
 									<FoldVerticalIcon size={16} />
 								</span>
-								<span style={{ fontWeight: "bold" }}>Cline is condensing the conversation:</span>
+								<span style={{ fontWeight: "bold" }}>HAI is condensing the conversation:</span>
 							</div>
 							<div
 								style={{
@@ -847,8 +847,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This URL is external")}
 								<span style={{ fontWeight: "bold" }}>
 									{message.type === "ask"
-										? "Cline wants to fetch content from this URL:"
-										: "Cline fetched content from this URL:"}
+										? "HAI wants to fetch content from this URL:"
+										: "HAI fetched content from this URL:"}
 								</span>
 							</div>
 							<div
@@ -901,9 +901,7 @@ export const ChatRowContent = memo(
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This search is external")}
 								<span style={{ fontWeight: "bold" }}>
-									{message.type === "ask"
-										? "Cline wants to search the web for:"
-										: "Cline searched the web for:"}
+									{message.type === "ask" ? "HAI wants to search the web for:" : "HAI searched the web for:"}
 								</span>
 							</div>
 							<div
@@ -1001,7 +999,7 @@ export const ChatRowContent = memo(
 				typeof onCancelCommand === "function" &&
 				vscodeTerminalExecutionMode === "backgroundExec"
 
-			// Check if this is a Cline subagent command (only on VSCode platform, not JetBrains/standalone)
+			// Check if this is a HAI subagent command (only on VSCode platform, not JetBrains/standalone)
 			const isSubagentCommand = PLATFORM_CONFIG.type === PlatformType.VSCODE && command.trim().startsWith("cline ")
 			let subagentPrompt: string | undefined
 
@@ -1038,7 +1036,7 @@ export const ChatRowContent = memo(
 			)
 
 			const displayTitle = isSubagentCommand ? (
-				<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to use a subagent:</span>
+				<span style={{ color: normalColor, fontWeight: "bold" }}>HAI wants to use a subagent:</span>
 			) : (
 				title
 			)
@@ -1773,18 +1771,10 @@ export const ChatRowContent = memo(
 									</span>
 								</div>
 								<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
-									Cline may have trouble viewing the command's output. Please update VSCode (
+									HAI may have trouble viewing the command's output. Please update VSCode (
 									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported shell:
 									zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default
 									Profile").{" "}
-									<a
-										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
-										style={{
-											color: "inherit",
-											textDecoration: "underline",
-										}}>
-										Still having trouble?
-									</a>
 								</div>
 							</div>
 						)
@@ -2112,9 +2102,7 @@ export const ChatRowContent = memo(
 											color: normalColor,
 											marginBottom: "-1.5px",
 										}}></span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
-										Cline wants to start a new task:
-									</span>
+									<span style={{ color: normalColor, fontWeight: "bold" }}>HAI wants to start a new task:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
 							</>
@@ -2130,7 +2118,7 @@ export const ChatRowContent = memo(
 											marginBottom: "-1.5px",
 										}}></span>
 									<span style={{ color: normalColor, fontWeight: "bold" }}>
-										Cline wants to condense your conversation:
+										HAI wants to condense your conversation:
 									</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
@@ -2147,7 +2135,7 @@ export const ChatRowContent = memo(
 											marginBottom: "-1.5px",
 										}}></span>
 									<span style={{ color: normalColor, fontWeight: "bold" }}>
-										Cline wants to create a Github issue:
+										HAI wants to create a Github issue:
 									</span>
 								</div>
 								<ReportBugPreview data={message.text || ""} />

@@ -1,6 +1,6 @@
 import { name, publisher, version } from "../package.json"
 
-const prefix = name === "hai-build-codegen" ? "cline" : name
+const prefix = "hai"
 
 /**
  * List of commands with the name of the extension they are registered under.

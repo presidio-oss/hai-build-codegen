@@ -94,33 +94,6 @@ export const CliInstallBanner: React.FC = () => {
 				<Terminal className="w-4 h-4" />
 				{isMacOSOrLinux() ? "Cline for CLI is here!" : "Cline CLI Information"}
 			</h4>
-			<p className="m-0">
-				{isMacOSOrLinux() ? (
-					<>
-						Install to use Cline directly in your terminal and enable subagent capabilities. Cline can spawn{" "}
-						<code>cline</code> commands to handle focused tasks like exploring large codebases for information. This
-						keeps your main context window clean by running these operations in separate subprocesses.{" "}
-						<a
-							href="https://docs.cline.bot/cline-cli/overview"
-							rel="noopener noreferrer"
-							style={{ color: "var(--vscode-textLink-foreground)" }}
-							target="_blank">
-							Learn more
-						</a>
-					</>
-				) : (
-					<>
-						Cline CLI is available for macOS and Linux! Coming <code>soon</code> to other platforms.{" "}
-						<a
-							href="https://docs.cline.bot/cline-cli/overview"
-							rel="noopener noreferrer"
-							style={{ color: "var(--vscode-textLink-foreground)" }}
-							target="_blank">
-							Learn more
-						</a>
-					</>
-				)}
-			</p>
 			<div className="flex flex-col gap-2 my-1">
 				<div
 					className="p-2 rounded flex items-center justify-between"

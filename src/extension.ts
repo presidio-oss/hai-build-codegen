@@ -434,8 +434,12 @@ function setupHostProvider(context: ExtensionContext) {
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
 	const createCommentReview = () => getVscodeCommentReviewController()
-	const createTerminalManager = () => new VscodeTerminalManager()
-	const outputChannel = vscode.window.createOutputChannel("Cline")
+	const createTerminalManager = () => {
+		const { TerminalRegistry } = require("./hosts/vscode/terminal/VscodeTerminalRegistry")
+		TerminalRegistry.setExtensionContext(context)
+		return new VscodeTerminalManager()
+	}
+	const outputChannel = vscode.window.createOutputChannel("HAI")
 	context.subscriptions.push(outputChannel)
 
 	const getCallbackUrl = async () => `${vscode.env.uriScheme || "vscode"}://${context.extension.id}`
