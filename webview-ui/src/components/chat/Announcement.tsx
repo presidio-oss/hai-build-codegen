@@ -1,4 +1,3 @@
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
 import { CSSProperties, memo, useState } from "react"
 import { useMount } from "react-use"
@@ -81,53 +80,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<XIcon />
 			</Button>
 			<h2 style={h2TitleStyle}>
-				🎉{"  "}New in v{version}
+				🚀{"  "}HAI Build v{version}
 			</h2>
-			<ul style={ulStyle}>
-				{isVscode && (
-					<>
-						<li>
-							New{" "}
-							<VSCodeLink href="https://docs.cline.bot/features/explain-changes" style={linkStyle}>
-								Explain Changes
-							</VSCodeLink>{" "}
-							button when Cline completes a task to help review code with inline chat. You can reply to comments, or
-							send the chat as context back to Cline.
-						</li>
-						<li>
-							Use the new{" "}
-							<VSCodeLink href="https://docs.cline.bot/features/slash-commands/explain-changes" style={linkStyle}>
-								/explain-changes
-							</VSCodeLink>{" "}
-							slash command to explain the changes in branches, commits, etc. (Try asking Cline to explain a PR you
-							need to review!)
-						</li>
-					</>
-				)}
-			</ul>
-			{isVscode && (
-				<p style={{ margin: "0" }}>
-					See a{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1995840893816111246" style={linkStyle}>
-						demo of "Explain Changes"
-					</VSCodeLink>
-				</p>
-			)}
 			<div style={hrStyle} />
-			<p style={linkContainerStyle}>
-				Join us on{" "}
-				<VSCodeLink href="https://x.com/cline" style={linkStyle}>
-					X,
-				</VSCodeLink>{" "}
-				<VSCodeLink href="https://discord.gg/cline" style={linkStyle}>
-					discord,
-				</VSCodeLink>{" "}
-				or{" "}
-				<VSCodeLink href="https://www.reddit.com/r/cline/" style={linkStyle}>
-					r/cline
-				</VSCodeLink>
-				for more updates!
-			</p>
+			<p className="text-xs mt-2 text-(--vscode-descriptionForeground)">Powering intelligent development with HAI Build</p>
 		</div>
 	)
 }

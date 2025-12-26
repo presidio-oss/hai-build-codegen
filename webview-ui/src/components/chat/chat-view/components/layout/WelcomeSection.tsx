@@ -1,12 +1,8 @@
-import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { Megaphone, Terminal } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import BannerCarousel, { BannerData } from "@/components/common/BannerCarousel"
 import { CURRENT_CLI_BANNER_VERSION } from "@/components/common/CliInstallBanner"
 import { CURRENT_INFO_BANNER_VERSION } from "@/components/common/InfoBanner"
 import { CURRENT_MODEL_BANNER_VERSION } from "@/components/common/NewModelBanner"
-import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
 import HomeHeader from "@/components/welcome/HomeHeader"
@@ -14,7 +10,6 @@ import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
@@ -67,125 +62,125 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	const activeBanners = useMemo((): BannerData[] => {
 		const banners: BannerData[] = []
 
-		if (shouldShowInfoBanner) {
-			banners.push({
-				id: "info-banner",
-				icon: <span>💡</span>,
-				title: "Use Cline in Right Sidebar",
-				description: (
-					<>
-						For the best experience, drag the Cline icon to your right sidebar. This keeps your file explorer and
-						editor visible while you chat with Cline, making it easier to navigate your codebase and see changes in
-						real-time.{" "}
-						<VSCodeLink
-							className="cursor-pointer"
-							href="https://docs.cline.bot/features/customization/opening-cline-in-sidebar"
-							style={{ display: "inline" }}>
-							See how →
-						</VSCodeLink>
-					</>
-				),
-				onDismiss: () => {
-					StateServiceClient.updateInfoBannerVersion({ value: CURRENT_INFO_BANNER_VERSION }).catch(console.error)
-				},
-			})
-		}
+		// if (shouldShowInfoBanner) {
+		// 	banners.push({
+		// 		id: "info-banner",
+		// 		icon: <span>💡</span>,
+		// 		title: "Use Cline in Right Sidebar",
+		// 		description: (
+		// 			<>
+		// 				For the best experience, drag the Cline icon to your right sidebar. This keeps your file explorer and
+		// 				editor visible while you chat with Cline, making it easier to navigate your codebase and see changes in
+		// 				real-time.{" "}
+		// 				<VSCodeLink
+		// 					className="cursor-pointer"
+		// 					href="https://docs.cline.bot/features/customization/opening-cline-in-sidebar"
+		// 					style={{ display: "inline" }}>
+		// 					See how →
+		// 				</VSCodeLink>
+		// 			</>
+		// 		),
+		// 		onDismiss: () => {
+		// 			StateServiceClient.updateInfoBannerVersion({ value: CURRENT_INFO_BANNER_VERSION }).catch(console.error)
+		// 		},
+		// 	})
+		// }
 
-		if (shouldShowNewModelBanner) {
-			const setNewModel = () => {
-				const modelId = "anthropic/claude-opus-4.5"
-				handleFieldsChange({
-					planModeOpenRouterModelId: modelId,
-					actModeOpenRouterModelId: modelId,
-					planModeOpenRouterModelInfo: openRouterModels[modelId],
-					actModeOpenRouterModelInfo: openRouterModels[modelId],
-					planModeApiProvider: "cline",
-					actModeApiProvider: "cline",
-				})
-				setTimeout(() => setShowChatModelSelector(true), 10)
-			}
+		// if (shouldShowNewModelBanner) {
+		// 	const setNewModel = () => {
+		// 		const modelId = "anthropic/claude-opus-4.5"
+		// 		handleFieldsChange({
+		// 			planModeOpenRouterModelId: modelId,
+		// 			actModeOpenRouterModelId: modelId,
+		// 			planModeOpenRouterModelInfo: openRouterModels[modelId],
+		// 			actModeOpenRouterModelInfo: openRouterModels[modelId],
+		// 			planModeApiProvider: "cline",
+		// 			actModeApiProvider: "cline",
+		// 		})
+		// 		setTimeout(() => setShowChatModelSelector(true), 10)
+		// 	}
 
-			const handleShowAccount = () => {
-				AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-					console.error("Failed to get login URL:", err),
-				)
-			}
+		// 	const handleShowAccount = () => {
+		// 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
+		// 			console.error("Failed to get login URL:", err),
+		// 		)
+		// 	}
 
-			banners.push({
-				id: "new-model",
-				icon: <Megaphone className="w-5 h-5" />,
-				title: "Claude Opus 4.5 Now Available",
-				description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
-				actions: [
-					{
-						label: clineUser ? "Try Now" : "Get Started",
-						onClick: clineUser ? setNewModel : handleShowAccount,
-						variant: "primary",
-					},
-				],
-				onDismiss: () => {
-					StateServiceClient.updateModelBannerVersion(
-						Int64Request.create({ value: CURRENT_MODEL_BANNER_VERSION }),
-					).catch(console.error)
-				},
-			})
-		}
+		// 	banners.push({
+		// 		id: "new-model",
+		// 		icon: <Megaphone className="w-5 h-5" />,
+		// 		title: "Claude Opus 4.5 Now Available",
+		// 		description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
+		// 		actions: [
+		// 			{
+		// 				label: clineUser ? "Try Now" : "Get Started",
+		// 				onClick: clineUser ? setNewModel : handleShowAccount,
+		// 				variant: "primary",
+		// 			},
+		// 		],
+		// 		onDismiss: () => {
+		// 			StateServiceClient.updateModelBannerVersion(
+		// 				Int64Request.create({ value: CURRENT_MODEL_BANNER_VERSION }),
+		// 			).catch(console.error)
+		// 		},
+		// 	})
+		// }
 
-		if (shouldShowCliBanner) {
-			const handleInstallCli = async () => {
-				try {
-					await StateServiceClient.installClineCli(EmptyRequest.create())
-				} catch (error) {
-					console.error("Failed to initiate CLI installation:", error)
-				}
-			}
+		// if (shouldShowCliBanner) {
+		// 	const handleInstallCli = async () => {
+		// 		try {
+		// 			await StateServiceClient.installClineCli(EmptyRequest.create())
+		// 		} catch (error) {
+		// 			console.error("Failed to initiate CLI installation:", error)
+		// 		}
+		// 	}
 
-			const handleEnableSubagents = () => {
-				if (!subagentsEnabled) {
-					navigateToSettings("features")
-				}
-			}
+		// 	const handleEnableSubagents = () => {
+		// 		if (!subagentsEnabled) {
+		// 			navigateToSettings("features")
+		// 		}
+		// 	}
 
-			banners.push({
-				id: "cli-install",
-				icon: <Terminal className="w-5 h-5" />,
-				title: isMacOSOrLinux() ? "CLI & Subagents Available" : "Cline CLI Info",
-				description: isMacOSOrLinux() ? (
-					<>
-						Use Cline in your terminal and enable subagent capabilities.{" "}
-						<VSCodeLink href="https://docs.cline.bot/cline-cli/overview" style={{ display: "inline" }}>
-							Learn more
-						</VSCodeLink>
-					</>
-				) : (
-					<>
-						Available for macOS and Linux. Coming soon to other platforms.{" "}
-						<VSCodeLink href="https://docs.cline.bot/cline-cli/overview" style={{ display: "inline" }}>
-							Learn more
-						</VSCodeLink>
-					</>
-				),
-				actions: isMacOSOrLinux()
-					? [
-							{ label: "Install", onClick: handleInstallCli, variant: "primary" },
-							{
-								label: "Enable Subagents",
-								onClick: handleEnableSubagents,
-								variant: "primary",
-								disabled: subagentsEnabled,
-							},
-						]
-					: [
-							{ label: "Install CLI", onClick: handleInstallCli, variant: "primary" },
-							{ label: "Subagents (Windows coming soon)", onClick: () => {}, variant: "secondary", disabled: true },
-						],
-				onDismiss: () => {
-					StateServiceClient.updateCliBannerVersion(Int64Request.create({ value: CURRENT_CLI_BANNER_VERSION })).catch(
-						console.error,
-					)
-				},
-			})
-		}
+		// 	banners.push({
+		// 		id: "cli-install",
+		// 		icon: <Terminal className="w-5 h-5" />,
+		// 		title: isMacOSOrLinux() ? "CLI & Subagents Available" : "Cline CLI Info",
+		// 		description: isMacOSOrLinux() ? (
+		// 			<>
+		// 				Use Cline in your terminal and enable subagent capabilities.{" "}
+		// 				<VSCodeLink href="https://docs.cline.bot/cline-cli/overview" style={{ display: "inline" }}>
+		// 					Learn more
+		// 				</VSCodeLink>
+		// 			</>
+		// 		) : (
+		// 			<>
+		// 				Available for macOS and Linux. Coming soon to other platforms.{" "}
+		// 				<VSCodeLink href="https://docs.cline.bot/cline-cli/overview" style={{ display: "inline" }}>
+		// 					Learn more
+		// 				</VSCodeLink>
+		// 			</>
+		// 		),
+		// 		actions: isMacOSOrLinux()
+		// 			? [
+		// 					{ label: "Install", onClick: handleInstallCli, variant: "primary" },
+		// 					{
+		// 						label: "Enable Subagents",
+		// 						onClick: handleEnableSubagents,
+		// 						variant: "primary",
+		// 						disabled: subagentsEnabled,
+		// 					},
+		// 				]
+		// 			: [
+		// 					{ label: "Install CLI", onClick: handleInstallCli, variant: "primary" },
+		// 					{ label: "Subagents (Windows coming soon)", onClick: () => {}, variant: "secondary", disabled: true },
+		// 				],
+		// 		onDismiss: () => {
+		// 			StateServiceClient.updateCliBannerVersion(Int64Request.create({ value: CURRENT_CLI_BANNER_VERSION })).catch(
+		// 				console.error,
+		// 			)
+		// 		},
+		// 	})
+		// }
 
 		return banners
 	}, [
@@ -223,7 +218,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					}
 				`}
 			</style>
-			<WhatsNewModal onClose={handleCloseWhatsNewModal} open={showWhatsNewModal} version={version} />
+			{/* <WhatsNewModal onClose={handleCloseWhatsNewModal} open={showWhatsNewModal} version={version} /> */}
 			<div className="overflow-y-auto flex flex-col pb-2.5">
 				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 				{!showWhatsNewModal && (

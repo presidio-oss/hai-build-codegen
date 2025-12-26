@@ -19,9 +19,9 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 	const [currentTab, setCurrentTab] = useState<Mode>(mode)
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	return (
-		<div>
+		<div className="w-full max-w-lg">
 			{renderSectionHeader?.("api-config")}
-			<Section>
+			<Section className="flex flex-col">
 				{/* Tabs container */}
 				{planActSeparateModelsSetting ? (
 					<div className="rounded-md mb-5">

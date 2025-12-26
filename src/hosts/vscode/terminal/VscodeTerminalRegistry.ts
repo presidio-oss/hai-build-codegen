@@ -19,12 +19,24 @@ export interface TerminalInfo {
 export class TerminalRegistry {
 	private static terminals: TerminalInfo[] = []
 	private static nextTerminalId = 1
+	private static extensionContext: vscode.ExtensionContext | undefined
+
+	static setExtensionContext(context: vscode.ExtensionContext) {
+		TerminalRegistry.extensionContext = context
+	}
 
 	static createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): TerminalInfo {
 		const terminalOptions: vscode.TerminalOptions = {
 			cwd,
-			name: "Cline",
-			iconPath: new vscode.ThemeIcon("cline-icon"),
+			name: "HAI",
+			iconPath: TerminalRegistry.extensionContext
+				? vscode.Uri.joinPath(
+						TerminalRegistry.extensionContext.extensionUri,
+						"assets",
+						"icons",
+						"HAI-Rounded-Dark@3x.png",
+					)
+				: new vscode.ThemeIcon("terminal"),
 			env: {
 				CLINE_ACTIVE: "true",
 			},
