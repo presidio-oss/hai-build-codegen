@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import * as should from "should"
 import * as sinon from "sinon"
 import { createClineAPI } from "@/exports"
-import type { ClineAPI } from "../exports/cline"
+import type { HAIAPI } from "../exports/hai"
 import { setVscodeHostProviderMock } from "./host-provider-test-utils"
 
 describe("ClineAPI Core Functionality", () => {
-	let api: ClineAPI
+	let api: HAIAPI
 	let mockController: any
 	let mockLogToChannel: sinon.SinonStub<[string], void>
 	let sandbox: sinon.SinonSandbox
