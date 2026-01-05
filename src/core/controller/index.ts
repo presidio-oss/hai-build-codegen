@@ -5,6 +5,7 @@ import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
 import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
+import HaiFileSystemWatcher from "@integrations/workspace/HaiFileSystemWatcher"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import type { ApiProvider, ModelInfo } from "@shared/api"
@@ -33,6 +34,7 @@ import { LogoutReason } from "@/services/auth/types"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
+import { TelemetryProviderFactory } from "@/services/telemetry/TelemetryProviderFactory"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import type { AuthState } from "@/shared/proto/index.cline"
@@ -78,6 +80,9 @@ export class Controller {
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
 
+	// File system watcher for .hai.config changes
+	private haiFileSystemWatcher?: HaiFileSystemWatcher
+
 	// Flag to prevent duplicate cancellations from spam clicking
 	private cancelInProgress = false
 
@@ -113,6 +118,25 @@ export class Controller {
 		fetchRemoteConfig(this)
 		// Set up 30-second interval
 		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 30000) // 30 seconds
+	}
+
+	/**
+	 * Initializes the file system watcher for .hai.config changes
+	 * This enables automatic telemetry reloading when config changes
+	 */
+	private initializeFileSystemWatcher() {
+		HostProvider.workspace
+			.getWorkspacePaths({})
+			.then((response) => {
+				const workspacePath = response.paths?.[0]
+				if (workspacePath) {
+					this.haiFileSystemWatcher = new HaiFileSystemWatcher(this, workspacePath)
+					console.log("[Controller] HaiFileSystemWatcher initialized for:", workspacePath)
+				}
+			})
+			.catch((error) => {
+				console.error("[Controller] Failed to initialize HaiFileSystemWatcher:", error)
+			})
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
@@ -163,6 +187,9 @@ export class Controller {
 			telemetryService,
 		)
 
+		// Initialize file system watcher for .hai.config changes
+		this.initializeFileSystemWatcher()
+
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints().catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
@@ -182,6 +209,12 @@ export class Controller {
 		if (this.remoteConfigTimer) {
 			clearInterval(this.remoteConfigTimer)
 			this.remoteConfigTimer = undefined
+		}
+
+		// Dispose file system watcher
+		if (this.haiFileSystemWatcher) {
+			await this.haiFileSystemWatcher.dispose()
+			this.haiFileSystemWatcher = undefined
 		}
 
 		await this.clearTask()
@@ -359,7 +392,8 @@ export class Controller {
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
 		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		const isOptedIn = telemetrySetting !== "disabled"
-		telemetryService.updateTelemetryState(isOptedIn)
+		// Await the telemetry state update to ensure providers are properly initialized
+		await telemetryService.updateTelemetryState(isOptedIn)
 		await this.postStateToWebview()
 	}
 
@@ -1064,5 +1098,19 @@ export class Controller {
 		} catch (error) {
 			console.error("Failed to track banner event:", error)
 		}
+	}
+
+	// TAG: HAI
+	async updateTelemetryConfig() {
+		// Refresh PostHog client and update Langfuse instance in telemetry
+		const providers = await TelemetryProviderFactory.createProviders()
+		await telemetryService.updateProviders(providers)
+
+		// Apply the current telemetry setting to the new providers
+		// Pass skipProviderRecreation=true since we just created the providers
+		const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
+		const isOptedIn = telemetrySetting !== "disabled"
+		await telemetryService.updateTelemetryState(isOptedIn, true)
+		console.log(`[Controller] Telemetry config updated, opted in: ${isOptedIn}`)
 	}
 }

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+echo "TaskCancel running inside local hai/.hairules/hooks/ directory"
+
+input=$(cat)
+echo $input | jq .
+
+for i in {1..5}; do
+  sleep 1
+  echo "$i"
+done
+
+cat <<EOF
+{
+  "cancel": false,
+  "contextModification": "TaskCancel response from the local hai/.hairules/hooks/ directory.",
+  "errorMessage": "TaskCancel hook custom errorMessage"
+}
+EOF

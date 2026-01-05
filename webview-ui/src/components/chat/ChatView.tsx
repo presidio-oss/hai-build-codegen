@@ -15,6 +15,7 @@ import { normalizeApiConfiguration } from "@/components/settings/utils/providerU
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import Logo from "../../assets/hai-dark.svg?react"
 import TelemetryBanner from "../common/TelemetryBanner"
 import { Navbar } from "../menu/Navbar"
 import QuickActions from "../welcome/QuickActions"
@@ -75,7 +76,7 @@ const ChatView = ({
 	// const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
-	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see HAI.abort)
 	const modifiedMessages = useMemo(() => {
 		const slicedMessages = messages.slice(1)
 		// Only combine hook sequences if hooks are enabled
@@ -402,9 +403,9 @@ const ChatView = ({
 							flexDirection: "column",
 							paddingBottom: "10px",
 						}}>
-						{/* <div style={{ height: "auto", maxWidth: "200px", margin: "20px" }}>
+						<div style={{ height: "auto", maxWidth: "200px", margin: "20px" }}>
 							<Logo className="hai-logo" style={{ height: "100%", width: "100%" }} />
-						</div> */}
+						</div>
 
 						{telemetrySetting === "unset" && <TelemetryBanner />}
 

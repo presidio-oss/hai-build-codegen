@@ -171,6 +171,19 @@ if (process.env.OTEL_EXPORTER_OTLP_HEADERS) {
 if (process.env.OTEL_METRIC_EXPORT_INTERVAL) {
 	buildEnvVars["process.env.OTEL_METRIC_EXPORT_INTERVAL"] = JSON.stringify(process.env.OTEL_METRIC_EXPORT_INTERVAL)
 }
+
+// Langfuse configuration (injected at build time from GitHub secrets)
+// These provide default telemetry endpoint when no custom .hai.config is provided
+if (process.env.LANGFUSE_API_URL) {
+	buildEnvVars["process.env.LANGFUSE_API_URL"] = JSON.stringify(process.env.LANGFUSE_API_URL)
+}
+if (process.env.LANGFUSE_API_KEY) {
+	buildEnvVars["process.env.LANGFUSE_API_KEY"] = JSON.stringify(process.env.LANGFUSE_API_KEY)
+}
+if (process.env.LANGFUSE_PUBLIC_KEY) {
+	buildEnvVars["process.env.LANGFUSE_PUBLIC_KEY"] = JSON.stringify(process.env.LANGFUSE_PUBLIC_KEY)
+}
+
 // Base configuration shared between extension and standalone builds
 const baseConfig = {
 	bundle: true,

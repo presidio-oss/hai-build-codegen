@@ -3,6 +3,7 @@ import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
+import { getGitUserInfo } from "@/utils/git"
 import { posthogConfig } from "../../../../shared/services/config/posthog-config"
 import type { ClineAccountUserInfo } from "../../../auth/AuthService"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
@@ -77,7 +78,11 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		this.client.capture({
 			distinctId: getDistinctId(),
 			event,
-			properties,
+			properties: {
+				...properties,
+				user: this.gitUserInfo.username,
+				email: this.gitUserInfo.email,
+			},
 		})
 	}
 
@@ -88,6 +93,8 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 			properties: {
 				...properties,
 				_required: true, // Mark as required event
+				user: this.gitUserInfo.username,
+				email: this.gitUserInfo.email,
 			},
 		})
 	}
@@ -100,7 +107,8 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 				distinctId: userInfo.id,
 				properties: {
 					uuid: userInfo.id,
-					name: userInfo.displayName,
+					user: this.gitUserInfo.username,
+					email: this.gitUserInfo.email,
 					...properties,
 					alias: distinctId,
 				},
@@ -143,12 +151,17 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		if (!this.isEnabled() && !required) return
 
 		// Convert metric to event format for PostHog
-		// Most counters don't need individual events - they're aggregated in OpenTelemetry
-		// Only log significant counter events that have dashboard equivalents
-		if (name === "cline.tokens.input.total" || name === "cline.tokens.output.total") {
-			// These will be batched and emitted as a single "task.tokens" event
-			// Implementation will be added when we update captureTokenUsage
-		}
+		this.client.capture({
+			distinctId: getDistinctId(),
+			event: `${name}`,
+			properties: {
+				...attributes,
+				value,
+				metric_type: "counter",
+				user: this.gitUserInfo.username,
+				email: this.gitUserInfo.email,
+			},
+		})
 	}
 
 	/**
@@ -156,15 +169,26 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 * Histograms track distributions, but PostHog events capture individual values
 	 */
 	public recordHistogram(
-		_name: string,
-		_value: number,
-		_attributes?: TelemetryProperties,
+		name: string,
+		value: number,
+		attributes?: TelemetryProperties,
 		_description?: string,
-		_required = false,
+		required = false,
 	): void {
-		// Histograms are for distribution analysis in OpenTelemetry
-		// PostHog gets the raw values through existing event capture methods
-		// No action needed here - events already capture these values
+		if (!this.isEnabled() && !required) return
+
+		// Convert histogram to event format for PostHog
+		this.client.capture({
+			distinctId: getDistinctId(),
+			event: `${name}`,
+			properties: {
+				...attributes,
+				value,
+				metric_type: "histogram",
+				user: this.gitUserInfo.username,
+				email: this.gitUserInfo.email,
+			},
+		})
 	}
 
 	/**
@@ -180,13 +204,18 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	): void {
 		if ((!this.isEnabled() && !required) || value === null) return
 
-		// Convert gauge updates to state change events
-		if (name === "cline.workspace.active_roots") {
-			this.log("workspace.roots_changed", {
-				count: value,
+		// Convert gauge to event format for PostHog
+		this.client.capture({
+			distinctId: getDistinctId(),
+			event: `${name}`,
+			properties: {
 				...attributes,
-			})
-		}
+				value,
+				metric_type: "gauge",
+				user: this.gitUserInfo.username,
+				email: this.gitUserInfo.email,
+			},
+		})
 	}
 
 	public async dispose(): Promise<void> {
@@ -211,4 +240,12 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		const config = vscode.workspace.getConfiguration("telemetry")
 		return config?.get<TelemetrySettings["level"]>("telemetryLevel") || "all"
 	}
+
+	// TAG:HAI
+	/** Git user information (username and email) for tracking user identity */
+	// This is used to identify the user in PostHog and Langfuse
+	private readonly gitUserInfo: {
+		username: string
+		email: string
+	} = getGitUserInfo()
 }

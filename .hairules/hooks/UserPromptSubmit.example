@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+echo "UserPromptSubmit running inside local HAI/.hairules/hooks/ directory"
+
+input=$(cat)
+echo $input | jq .
+
+for i in {1..5}; do
+  sleep 1
+  echo "$i"
+done
+
+cat <<EOF
+{
+  "cancel": false,
+  "contextModification": "UserPromptSubmit response from the local HAI/.hairules/hooks/ directory.",
+  "errorMessage": "UserPromptSubmit hook custom errorMessage"
+}
+EOF

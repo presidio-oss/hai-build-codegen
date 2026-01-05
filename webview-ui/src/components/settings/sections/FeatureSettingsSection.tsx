@@ -1,16 +1,12 @@
 import { McpDisplayMode } from "@shared/McpDisplayMode"
-import { EmptyRequest } from "@shared/proto/index.cline"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { memo, useEffect, useState } from "react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { memo, useState } from "react"
 import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
 import Section from "../Section"
-import SubagentOutputLineLimitSlider from "../SubagentOutputLineLimitSlider"
 import { updateSetting } from "../utils/settingsHandlers"
 
 interface FeatureSettingsSectionProps {
@@ -43,130 +39,11 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		updateSetting("openaiReasoningEffort", newValue)
 	}
 
-	// Poll for CLI installation status while the component is mounted
-	useEffect(() => {
-		const checkInstallation = async () => {
-			try {
-				const result = await StateServiceClient.checkCliInstallation(EmptyRequest.create())
-				setIsClineCliInstalled(result.value)
-			} catch (error) {
-				console.error("Failed to check CLI installation:", error)
-			}
-		}
-
-		checkInstallation()
-
-		// Poll ever 1.5 seconds to see if CLI is installed (only when form is open)
-		const pollInterval = setInterval(checkInstallation, 1500)
-
-		return () => {
-			clearInterval(pollInterval)
-		}
-	}, [])
-
 	return (
 		<div>
 			{renderSectionHeader("features")}
 			<Section>
 				<div style={{ marginBottom: 20 }}>
-					{/* Subagents - Only show on macOS and Linux */}
-					{isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-						<div
-							className="relative p-3 mb-3 rounded-md"
-							id="subagents-section"
-							style={{
-								border: "1px solid var(--vscode-widget-border)",
-								backgroundColor: "var(--vscode-list-hoverBackground)",
-							}}>
-							<div
-								className="absolute -top-2 -right-2 px-2 py-0.5 rounded text-xs font-semibold"
-								style={{
-									backgroundColor: "var(--vscode-button-secondaryBackground)",
-									color: "var(--vscode-button-secondaryForeground)",
-								}}>
-								NEW
-							</div>
-
-							<div
-								className="mt-1.5 mb-2 px-2 pt-0.5 pb-1.5 rounded"
-								style={{
-									backgroundColor: "color-mix(in srgb, var(--vscode-sideBar-background) 99%, black)",
-								}}>
-								<p
-									className="text-xs mb-2 flex items-start"
-									style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
-									<span
-										className="codicon codicon-warning mr-1"
-										style={{ fontSize: "12px", marginTop: "1px", flexShrink: 0 }}></span>
-									<span>
-										Cline for CLI is required for subagents. Install it with:
-										<code
-											className="ml-1 px-1 rounded"
-											style={{
-												backgroundColor: "var(--vscode-editor-background)",
-												color: "var(--vscode-foreground)",
-												opacity: 0.9,
-											}}>
-											npm install -g cline
-										</code>
-										, then run
-										<code
-											className="ml-1 px-1 rounded"
-											style={{
-												backgroundColor: "var(--vscode-editor-background)",
-												color: "var(--vscode-foreground)",
-												opacity: 0.9,
-											}}>
-											cline auth
-										</code>
-										To authenticate with Cline or configure an API provider.
-									</span>
-								</p>
-								{!isClineCliInstalled && (
-									<VSCodeButton
-										appearance="secondary"
-										onClick={async () => {
-											try {
-												await StateServiceClient.installClineCli(EmptyRequest.create())
-											} catch (error) {
-												console.error("Failed to initiate CLI installation:", error)
-											}
-										}}
-										style={{
-											transform: "scale(0.85)",
-											transformOrigin: "left center",
-											marginLeft: "-2px",
-										}}>
-										Install Now
-									</VSCodeButton>
-								)}
-							</div>
-							<VSCodeCheckbox
-								checked={subagentsEnabled}
-								disabled={!isClineCliInstalled}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("subagentsEnabled", checked)
-								}}>
-								<span className="font-semibold">
-									{subagentsEnabled ? "Subagents Enabled" : "Enable Subagents"}
-								</span>
-							</VSCodeCheckbox>
-							<p className="text-xs mt-1 mb-0">
-								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
-								<span className="text-description">
-									Allows Cline to spawn subprocesses to handle focused tasks like exploring large codebases,
-									keeping your main context clean.
-								</span>
-							</p>
-							{subagentsEnabled && (
-								<div className="mt-3">
-									<SubagentOutputLineLimitSlider />
-								</div>
-							)}
-						</div>
-					)}
-
 					<div>
 						<VSCodeCheckbox
 							checked={enableCheckpointsSetting}
@@ -285,8 +162,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								value={String(focusChainSettings?.remindClineInterval || 6)}
 							/>
 							<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-								Interval (in messages) to remind Cline about its focus chain checklist (1-100). Lower values
-								provide more frequent reminders.
+								Interval (in messages) to remind HAI about its focus chain checklist (1-100). Lower values provide
+								more frequent reminders.
 							</p>
 						</div>
 					)}
@@ -305,7 +182,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Dictation
 							</VSCodeCheckbox>
 							<p className="text-xs text-description mt-1">
-								Enables speech-to-text transcription using your Cline account. Uses the Aqua Voice's Avalon model,
+								Enables speech-to-text transcription using your HAI account. Uses the Aqua Voice's Avalon model,
 								at $0.0065 credits per minute of audio processed. 5 minutes max per message.
 							</p>
 						</div>
@@ -319,16 +196,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							}}>
 							Enable Auto Compact
 						</VSCodeCheckbox>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Enables advanced context management system which uses LLM based condensing for next-gen models.{" "}
-							<a
-								className="text-(--vscode-textLink-foreground) hover:text-(--vscode-textLink-activeForeground)"
-								href="https://docs.cline.bot/features/auto-compact"
-								rel="noopener noreferrer"
-								target="_blank">
-								Learn more
-							</a>
-						</p>
 					</div>
 					{clineWebToolsEnabled?.featureFlag && (
 						<div style={{ marginTop: 10 }}>
@@ -338,10 +205,10 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const checked = e.target.checked === true
 									updateSetting("clineWebToolsEnabled", checked)
 								}}>
-								Enable Cline Web Tools
+								Enable HAI Web Tools
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables websearch and webfetch tools while using the Cline provider.
+								Enables websearch and webfetch tools while using the HAI provider.
 							</p>
 						</div>
 					)}
@@ -387,7 +254,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</VSCodeCheckbox>
 							<p className="text-xs">
 								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
-								<span className="text-description">Allows cline to work across multiple workspaces.</span>
+								<span className="text-description">Allows HAI to work across multiple workspaces.</span>
 							</p>
 						</div>
 					)}
@@ -442,7 +309,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</Tooltip>
 
 						<p className="text-xs text-(--vscode-errorForeground)">
-							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
+							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. HAI will
 							automatically approve all actions without asking. Use with extreme caution.
 						</p>
 					</div>

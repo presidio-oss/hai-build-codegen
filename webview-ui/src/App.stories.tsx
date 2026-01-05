@@ -52,7 +52,7 @@ const meta: Meta<typeof MockApp> = {
 		docs: {
 			description: {
 				component: `
-The ChatView component is the main interface for interacting with Cline. It provides a comprehensive chat experience with AI assistance, task management, and various tools.
+The ChatView component is the main interface for interacting with HAI. It provides a comprehensive chat experience with AI assistance, task management, and various tools.
 
 **Key Features:**
 - **Task Management**: Create, resume, and manage AI-assisted tasks
@@ -310,7 +310,7 @@ export const Onboarding: Story = {
 		const canvas = within(canvasElement)
 
 		// Step 0: User type selection should be visible
-		const title = canvas.getByText("How will you use Cline?")
+		const title = canvas.getByText("How will you use HAI?")
 		await expect(title).toBeInTheDocument()
 		const freeUserOption = canvas.getByText("Absolutely Free")
 		const powerUserOption = canvas.getByText("Frontier Model")
@@ -357,7 +357,7 @@ export const Onboarding: Story = {
 		await userEvent.click(backButton)
 
 		// Should be back to user type selection
-		await expect(canvas.getByText("How will you use Cline?")).toBeInTheDocument()
+		await expect(canvas.getByText("How will you use HAI?")).toBeInTheDocument()
 
 		// Test power user flow
 		await userEvent.click(powerUserOption)
@@ -387,7 +387,7 @@ export const ActiveConversation: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "An active conversation showing a typical interaction with Cline, including task creation, tool usage, and AI responses.",
+				story: "An active conversation showing a typical interaction with HAI, including task creation, tool usage, and AI responses.",
 			},
 		},
 	},
@@ -508,7 +508,7 @@ export const ErrorState: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "Shows how Cline handles and displays error messages, helping users understand and resolve issues.",
+				story: "Shows how HAI handles and displays error messages, helping users understand and resolve issues.",
 			},
 		},
 	},
@@ -526,7 +526,7 @@ export const AutoApprovalEnabled: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "Shows the interface with auto-approval enabled, allowing Cline to execute certain actions automatically without user confirmation.",
+				story: "Shows the interface with auto-approval enabled, allowing HAI to execute certain actions automatically without user confirmation.",
 			},
 		},
 	},
@@ -559,7 +559,7 @@ export const PlanMode: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "Shows Cline in Plan mode, where it focuses on creating detailed plans and discussing approaches before implementation.",
+				story: "Shows HAI in Plan mode, where it focuses on creating detailed plans and discussing approaches before implementation.",
 			},
 		},
 	},
@@ -595,7 +595,7 @@ export const BrowserAutomation: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "Shows Cline performing browser automation tasks, including launching browsers, clicking elements, and testing web applications.",
+				story: "Shows HAI performing browser automation tasks, including launching browsers, clicking elements, and testing web applications.",
 			},
 		},
 	},
@@ -719,7 +719,7 @@ export const Followup = quickStory(
 	"Follow-up",
 	"followup",
 	"What would you like me to work on next?",
-	"Shows followup question state where Cline asks for next steps.",
+	"Shows followup question state where HAI asks for next steps.",
 )
 export const ResumeTask = quickStory(
 	"Resume Task",
@@ -748,7 +748,7 @@ export const PlanModeResponse = quickStory(
 	"Plan Mode Response",
 	"plan_mode_respond",
 	"Here's my detailed plan for creating a comprehensive testing strategy.",
-	"Shows plan mode response where Cline presents a detailed plan for user approval.",
+	"Shows plan mode response where HAI presents a detailed plan for user approval.",
 )
 export const CondenseConversation = quickStory(
 	"Condense Conversation",
@@ -759,7 +759,7 @@ export const CondenseConversation = quickStory(
 export const ReportBug = quickStory(
 	"Report Bug",
 	"report_bug",
-	"Would you like to report this issue to help improve Cline?",
+	"Would you like to report this issue to help improve HAI?",
 	"Shows utility action to report bugs to the GitHub repository.",
 )
 export const ResumeCompletedTask = quickStory(

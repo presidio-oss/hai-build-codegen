@@ -5,7 +5,7 @@ import ClineLogoVariable from "../../assets/ClineLogoVariable"
 
 // export const AccountWelcomeView = () => (
 // 	<div className="flex flex-col items-center pr-3 gap-2.5">
-// 		<ClineLogoWhite className="size-16 mb-4" />
+// 		<HAILogo className="size-16 mb-4" />
 export const AccountWelcomeView = () => {
 	const { environment } = useExtensionState()
 	const { isLoginLoading, handleSignIn } = useClineSignIn()

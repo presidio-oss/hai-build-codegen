@@ -10,7 +10,6 @@
 import * as assert from "assert"
 import * as sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
-import * as posthogConfigModule from "@/shared/services/config/posthog-config"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { NoOpTelemetryProvider, TelemetryProviderFactory } from "./TelemetryProviderFactory"
 import { TelemetryMetadata, TelemetryService } from "./TelemetryService"
@@ -257,21 +256,14 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	})
 
 	describe("Factory Configuration", () => {
-		it("should return default configurations", () => {
-			// Mock PostHog config validation to return true for this test
-			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
+		it("should return default configurations", async () => {
+			// Note: PostHog is now only enabled via .hai.config, not by default
+			// Langfuse is the primary telemetry provider with pipeline defaults
 
-			const defaultConfigs = TelemetryProviderFactory.getDefaultConfigs()
+			const defaultConfigs = await TelemetryProviderFactory.getDefaultConfigs()
 
-			// Should include at least PostHog
+			// Should return at least no-op if no env vars are set
 			assert.ok(defaultConfigs.length > 0, "Should return at least one configuration")
-			assert.ok(
-				defaultConfigs.some((c) => c.type === "posthog"),
-				"Should include PostHog configuration",
-			)
-
-			// Restore the stub
-			isPostHogConfigValidStub.restore()
 		})
 
 		it("should handle provider switching seamlessly", async () => {
