@@ -370,18 +370,18 @@ export class TelemetryService {
 				const newProviders = await TelemetryProviderFactory.createProviders()
 				this.updateProviders(newProviders)
 				// Capture telemetry enabled event after providers are refreshed
-				// this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
+				this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
 				console.info(`[TelemetryService] Telemetry re-enabled with ${newProviders.length} provider(s)`)
 			} catch (error) {
 				console.error("[TelemetryService] Failed to reinitialize providers on opt-in:", error)
 			}
 		} else if (didUserOptIn && skipProviderRecreation) {
 			// Just capture the enabled event without recreating providers
-			// this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
+			this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
 			console.info("[TelemetryService] Telemetry enabled (providers already updated)")
 		} else {
 			// Capture opt-out event before disabling
-			// this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
+			this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
 			console.info("[TelemetryService] Telemetry disabled by user")
 		}
 	}
