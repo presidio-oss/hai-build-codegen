@@ -159,8 +159,8 @@ export const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePat
 }
 
 /**
- * Handles converting any directory into a file (specifically used for .clinerules and .clinerules/workflows)
- * The old .clinerules file or .clinerules/workflows file will be renamed to a default filename
+ * Handles converting any directory into a file (specifically used for .hairules and .hairules/workflows)
+ * The old .hairules file or .hairules/workflows file will be renamed to a default filename
  * Doesn't do anything if the dir already exists or doesn't exist
  * Returns whether there are any uncaught errors
  */
@@ -169,7 +169,7 @@ export async function ensureLocalClineDirExists(clinerulePath: string, defaultRu
 		const exists = await fileExistsAtPath(clinerulePath)
 
 		if (exists && !(await isDirectory(clinerulePath))) {
-			// logic to convert .clinerules file into directory, and rename the rules file to {defaultRuleFilename}
+			// logic to convert .hairules file into directory, and rename the rules file to {defaultRuleFilename}
 			const content = await fs.readFile(clinerulePath, "utf8")
 			const tempPath = clinerulePath + ".bak"
 			await fs.rename(clinerulePath, tempPath) // create backup
