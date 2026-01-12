@@ -32,6 +32,7 @@ import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { LogoutReason } from "@/services/auth/types"
 import { featureFlagsService } from "@/services/feature-flags"
+import { getStarCount } from "@/services/github/github"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { TelemetryProviderFactory } from "@/services/telemetry/TelemetryProviderFactory"
@@ -39,6 +40,7 @@ import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import type { AuthState } from "@/shared/proto/index.cline"
 import { getLatestAnnouncementId } from "@/utils/announcements"
+import { getAllLocalMcps, getLocalMcp } from "@/utils/local-mcp-registry"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { BannerService } from "../../services/banner/BannerService"
 import { PromptRegistry } from "../prompts/system-prompt"
@@ -684,20 +686,52 @@ export class Controller {
 		// Get allowlist from remote config
 		const allowedMCPServers = this.stateManager.getRemoteConfigSettings().allowedMCPServers
 
-		let items: McpMarketplaceItem[] = (response.data || []).map((item: McpMarketplaceItem) => ({
+		// Create an array to hold all local MCPs with their star counts
+		const localMcpItems: McpMarketplaceItem[] = []
+
+		// Get all local MCPs from registry
+		const localMcpIds = Object.keys(getAllLocalMcps())
+
+		// Fetch GitHub stars for each local MCP
+		for (const mcpId of localMcpIds) {
+			const mcp = getLocalMcp(mcpId)
+			if (mcp) {
+				// Update star count for this MCP and add isLocal flag
+				let gitHubStars = 0
+				try {
+					gitHubStars = await getStarCount(mcp.githubUrl)
+				} catch (error) {
+					console.error(`[fetchMcpMarketplaceFromApi] Failed to get star count for ${mcpId}:`, error)
+				}
+				localMcpItems.push({
+					...mcp,
+					githubStars: gitHubStars || 0,
+					isLocal: true,
+					createdAt: "",
+					updatedAt: "",
+					lastGithubSync: "",
+				})
+			}
+		}
+
+		let remoteItems: McpMarketplaceItem[] = (response.data || []).map((item: McpMarketplaceItem) => ({
 			...item,
 			githubStars: item.githubStars ?? 0,
 			downloadCount: item.downloadCount ?? 0,
 			tags: item.tags ?? [],
+			isLocal: false,
 		}))
 
 		// Filter by allowlist if configured
 		if (allowedMCPServers) {
 			const allowedIds = new Set(allowedMCPServers.map((server) => server.id))
-			items = items.filter((item: McpMarketplaceItem) => allowedIds.has(item.mcpId))
+			remoteItems = remoteItems.filter((item: McpMarketplaceItem) => allowedIds.has(item.mcpId))
 		}
 
-		const catalog: McpMarketplaceCatalog = { items }
+		// Combine local MCPs first, then remote MCPs
+		const catalog: McpMarketplaceCatalog = {
+			items: [...localMcpItems, ...remoteItems],
+		}
 
 		// Store in cache file
 		await writeMcpMarketplaceCatalogToCache(catalog)
