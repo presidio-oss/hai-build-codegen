@@ -51,8 +51,8 @@ function escapeUnixShellPath(path: string): string {
  *
  * Use cases:
  * - Global hooks directory: ~/Documents/Cline/Hooks/
- * - Workspace hooks: /path/to/My Project/.clinerules/hooks/
- * - Multi-root workspaces: each root's .clinerules/hooks/
+ * - Workspace hooks: /path/to/My Project/.hairules/hooks/
+ * - Multi-root workspaces: each root's .hairules/hooks/
  *
  * Examples:
  * - "/Users/user/My Project/hooks/PreToolUse" → "'/Users/user/My Project/hooks/PreToolUse'"

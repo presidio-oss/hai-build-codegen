@@ -198,23 +198,23 @@ describe("Filesystem Utilities", () => {
 		files.sort().should.deepEqual(expectedFiles.sort())
 	})
 
-	it("should exclude .clinerules/workflows directory specifically", async () => {
+	it("should exclude .hairules/workflows directory specifically", async () => {
 		// Create a test directory structure
-		const clinerulesDirTest = path.join(tmpDir, "clinerules-test")
-		const clinerulesDirPath = path.join(clinerulesDirTest, ".clinerules")
+		const clinerulesDirTest = path.join(tmpDir, "hairules-test")
+		const clinerulesDirPath = path.join(clinerulesDirTest, ".hairules")
 
-		// Create .clinerules directory and root files
+		// Create .hairules directory and root files
 		await fs.mkdir(clinerulesDirPath, { recursive: true })
 		await fs.writeFile(path.join(clinerulesDirPath, "config.json"), "{}")
 		await fs.writeFile(path.join(clinerulesDirPath, "settings.js"), "// settings")
 
-		// Create .clinerules/other directory and files
+		// Create .hairules/other directory and files
 		const otherDirPath = path.join(clinerulesDirPath, "other")
 		await fs.mkdir(otherDirPath, { recursive: true })
 		await fs.writeFile(path.join(otherDirPath, "helper.js"), "// helper code")
 		await fs.writeFile(path.join(otherDirPath, "util.js"), "// util functions")
 
-		// Create .clinerules/workflows directory and files
+		// Create .hairules/workflows directory and files
 		const workflowsDirPath = path.join(clinerulesDirPath, "workflows")
 		await fs.mkdir(workflowsDirPath, { recursive: true })
 		await fs.writeFile(path.join(workflowsDirPath, "workflow1.js"), "// workflow1")
@@ -229,7 +229,7 @@ describe("Filesystem Utilities", () => {
 		allFiles.some((file) => file.includes("workflow2.js")).should.be.true()
 
 		// Get files WITH workflows directory excluded
-		const filteredFiles = await readDirectory(clinerulesDirPath, [[".clinerules", "workflows"]])
+		const filteredFiles = await readDirectory(clinerulesDirPath, [[".hairules", "workflows"]])
 
 		// Verify workflows files are excluded but others remain
 		filteredFiles.length.should.equal(4) // 2 in root + 2 in other
@@ -245,8 +245,8 @@ describe("Filesystem Utilities", () => {
 
 		// Test with multiple exclusions
 		const multiExcludeFiles = await readDirectory(clinerulesDirPath, [
-			[".clinerules", "workflows"],
-			[".clinerules", "other"],
+			[".hairules", "workflows"],
+			[".hairules", "other"],
 		])
 
 		// Verify both workflows and other directories are excluded
@@ -257,22 +257,22 @@ describe("Filesystem Utilities", () => {
 		multiExcludeFiles.sort().should.deepEqual(rootOnlyFiles.sort())
 	})
 
-	it("should exclude .clinerules/hooks directory specifically", async () => {
+	it("should exclude .hairules/hooks directory specifically", async () => {
 		// Create a test directory structure
-		const clinerulesDirTest = path.join(tmpDir, "clinerules-hooks-test")
-		const clinerulesDirPath = path.join(clinerulesDirTest, ".clinerules")
+		const clinerulesDirTest = path.join(tmpDir, "hairules-hooks-test")
+		const clinerulesDirPath = path.join(clinerulesDirTest, ".hairules")
 
-		// Create .clinerules directory and root files
+		// Create .hairules directory and root files
 		await fs.mkdir(clinerulesDirPath, { recursive: true })
 		await fs.writeFile(path.join(clinerulesDirPath, "config.json"), "{}")
 		await fs.writeFile(path.join(clinerulesDirPath, "settings.js"), "// settings")
 
-		// Create .clinerules/workflows directory and files
+		// Create .hairules/workflows directory and files
 		const workflowsDirPath = path.join(clinerulesDirPath, "workflows")
 		await fs.mkdir(workflowsDirPath, { recursive: true })
 		await fs.writeFile(path.join(workflowsDirPath, "workflow1.js"), "// workflow1")
 
-		// Create .clinerules/hooks directory and files
+		// Create .hairules/hooks directory and files
 		const hooksDirPath = path.join(clinerulesDirPath, "hooks")
 		await fs.mkdir(hooksDirPath, { recursive: true })
 		await fs.writeFile(path.join(hooksDirPath, "PreToolUse"), "#!/usr/bin/env bash")
@@ -287,7 +287,7 @@ describe("Filesystem Utilities", () => {
 		allFiles.some((file) => file.includes("PostToolUse")).should.be.true()
 
 		// Get files WITH hooks directory excluded
-		const filteredFiles = await readDirectory(clinerulesDirPath, [[".clinerules", "hooks"]])
+		const filteredFiles = await readDirectory(clinerulesDirPath, [[".hairules", "hooks"]])
 
 		// Verify hooks files are excluded but others remain
 		filteredFiles.length.should.equal(3) // 2 in root + 1 in workflows
@@ -302,8 +302,8 @@ describe("Filesystem Utilities", () => {
 
 		// Test with multiple exclusions (both workflows and hooks)
 		const multiExcludeFiles = await readDirectory(clinerulesDirPath, [
-			[".clinerules", "workflows"],
-			[".clinerules", "hooks"],
+			[".hairules", "workflows"],
+			[".hairules", "hooks"],
 		])
 
 		// Verify both workflows and hooks directories are excluded

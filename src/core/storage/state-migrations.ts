@@ -150,7 +150,7 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 		if (customInstructions?.trim()) {
 			console.log("Migrating custom instructions to global Cline rules...")
 
-			// Create global .clinerules directory if it doesn't exist
+			// Create global .hairules directory if it doesn't exist
 			const globalRulesDir = await ensureRulesDirectoryExists()
 
 			// Use a fixed filename for custom instructions

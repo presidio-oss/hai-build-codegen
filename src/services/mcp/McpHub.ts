@@ -38,6 +38,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { fetch } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { expandEnvironmentVariables } from "@/utils/envExpansion"
+import { isLocalMcp } from "@/utils/local-mcp-registry"
 import { getServerAuthHash } from "@/utils/mcpAuth"
 import { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
@@ -244,27 +245,34 @@ export class McpHub {
 			const stateManager = StateManager.get()
 			const remoteConfig = stateManager.getRemoteConfigSettings()
 
-			// If marketplace is disabled, block all local servers
-			if (remoteConfig.mcpMarketplaceEnabled === false) {
-				return
-			}
+			// Allow local MCPs from the bundled registry (e.g., Specifai MCP)
+			// These are official/bundled MCPs and should bypass remote config restrictions
+			if (isLocalMcp(name)) {
+				// Local MCPs from registry are always allowed
+				console.log(`[MCP] Allowing local MCP from registry: ${name}`)
+			} else {
+				// If marketplace is disabled, block all local servers
+				if (remoteConfig.mcpMarketplaceEnabled === false) {
+					return
+				}
 
-			// Check if server is from GitHub marketplace
-			if (name.startsWith("github.com/")) {
-				// If allowlist is configured, validate against it
-				if (remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0) {
-					const allowedIds = remoteConfig.allowedMCPServers.map((server: { id: string }) => server.id)
+				// Check if server is from GitHub marketplace
+				if (name.startsWith("github.com/")) {
+					// If allowlist is configured, validate against it
+					if (remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0) {
+						const allowedIds = remoteConfig.allowedMCPServers.map((server: { id: string }) => server.id)
 
-					if (!allowedIds.includes(name)) {
+						if (!allowedIds.includes(name)) {
+							return
+						}
+					} else {
+						// If no allowlist, GitHub servers are not allowed
 						return
 					}
 				} else {
-					// If no allowlist, GitHub servers are not allowed
+					// Non-GitHub local servers are blocked
 					return
 				}
-			} else {
-				// Non-GitHub local servers are blocked
-				return
 			}
 		}
 

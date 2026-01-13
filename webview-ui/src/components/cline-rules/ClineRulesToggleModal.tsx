@@ -653,9 +653,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									<div
 										key={workspace.workspaceName}
 										style={{ marginBottom: index === workspaceHooks.length - 1 ? -10 : 12 }}>
-										<div className="text-sm font-normal mb-2">
-											{workspace.workspaceName}/.clinerules/hooks/
-										</div>
+										<div className="text-sm font-normal mb-2">{workspace.workspaceName}/.hairules/hooks/</div>
 										<div className="flex flex-col gap-0">
 											{workspace.hooks
 												.sort((a, b) => a.name.localeCompare(b.name))

@@ -277,7 +277,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							<p className="text-xs">
 								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
 								<span className="text-description">
-									Allows execution of hooks from .clinerules/hooks/ directory.
+									Allows execution of hooks from .hairules/hooks/ directory.
 								</span>
 							</p>
 						)}
