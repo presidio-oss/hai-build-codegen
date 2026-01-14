@@ -2,15 +2,16 @@ name: Upstream Auto Sync via PR
 on:
   schedule:
     - cron: '0 0 * * *' # Runs daily.
-  workflow_dispatch:  
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  workflows: write
 
 jobs:
   upstream-sync:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      workflows: write
 
     steps:
       - name: Checkout Fork
