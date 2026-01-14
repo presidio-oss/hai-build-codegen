@@ -1,0 +1,148 @@
+name: Upstream Auto Sync via PR
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs daily.
+  workflow_dispatch:  
+
+jobs:
+  upstream-sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check and Sync Upstream
+        id: sync_upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPSTREAM_REPO: "cline/cline"
+          FORK_REPO: "presidio-oss/hai-build-codegen"
+        run: |
+          # Setup Git Identity (Required for merge commits)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Setup upstream remote and fetch
+          # We check if 'upstream' exists; if not, add it. If it does, update the URL.
+
+          if ! git remote | grep -q 'upstream'; then
+            echo "Adding upstream remote..."
+            git remote add upstream https://github.com/${UPSTREAM_REPO}.git
+          else
+            echo "Upstream remote already exists, updating URL..."
+            git remote set-url upstream https://github.com/${UPSTREAM_REPO}.git
+          fi
+
+          git fetch upstream main
+
+          # Checkout to upstream-main branch
+          # This ensures we are merging upstream into our upstream-main branch
+          git checkout upstream-main 
+
+          # Check if upstream is actually ahead of our main
+          LOCAL_HASH=$(git rev-parse HEAD)
+          UPSTREAM_HASH=$(git rev-parse upstream/main)
+
+          if [ "$LOCAL_HASH" = "$UPSTREAM_HASH" ]; then
+            echo "No changes found. Skipping sync."
+            exit 0
+          fi
+
+          
+          # Merge upstream into the sync branch
+          echo "New commits detected. Merging..."
+          git merge upstream/main --no-edit
+          
+          # Push the branch (use force-with-lease to update existing PR branch safely)
+          git push origin upstream-main
+
+          EXISTING_PR_URL=$(gh pr list --repo $FORK_REPO --state open --search "Merge from Cline" --json url --jq '.[0].url')
+
+          if [ -z "$EXISTING_PR_URL" ]; then
+            echo "Creating new Pull Request..."
+            NEW_PR_URL=$(gh pr create \
+              --repo $FORK_REPO \
+              --title "Merge from Cline" \
+              --body "This is an automated PR to sync changes from cline repo." \
+              --base main \
+              --head upstream-main)
+            
+            echo "pr_url=$NEW_PR_URL" >> $GITHUB_OUTPUT
+            echo "pr_created=true" >> $GITHUB_OUTPUT
+          else
+            echo "Existing PR updated with new commits."
+            echo "pr_url=$EXISTING_PR_URL" >> $GITHUB_OUTPUT
+            echo "new_changes_found=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send PR created Email Notification
+        if: steps.sync_upstream.outputs.pr_created == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "[Upstream Sync] New PR created with latest changes"
+          to: ${{ secrets.MAIL_TO }}
+          from: HAI Build Codegen - GitHub Actions
+          html_body: |
+            <!DOCTYPE html>
+            <html>
+              <body style="font-family: Arial, sans-serif; color: #333; margin: 0; padding: 0;">
+                <div style="max-width: 600px; margin: 20px auto; border: 1px solid #eeeeee; padding: 20px; border-radius: 8px;">
+                  <div style="text-align: center; margin-bottom: 20px;">
+                    <img src="https://raw.githubusercontent.com/presidio-oss/hai-build-codegen/afad79317dfabbf54b45639d17f5c1abbcb13905/assets/img/hai_build_logo_theme.png" alt="Header Logo">
+                  </div>
+                  <h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">New Sync PR Created</h2>
+                  <p>New changes were found in the <b>Cline Repository</b>.</p>
+                  <p>A new Pull Request has been automatically created to sync these changes into your fork.</p>
+                  <div style="margin: 30px 0; text-align: center;">
+                    <a href="${{ steps.sync_upstream.outputs.pr_url }}" 
+                       style="background-color: #3498db; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                       View Pull Request
+                    </a>
+                  </div>
+                  <p style="font-size: 12px; color: #7f8c8d; border-top: 1px solid #eeeeee; padding-top: 15px;">
+                    This is an automated notification from your GitHub Actions pipeline.
+                  </p>
+                </div>
+              </body>
+            </html>
+
+
+      - name: Send New Changes found Email Notification
+        if: steps.sync_upstream.outputs.new_changes_found == 'true' 
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "[Upstream Sync] Existing PR updated with new commits"
+          to: ${{ secrets.MAIL_TO }}
+          from: HAI Build Codegen - GitHub Actions
+          html_body: |
+            <!DOCTYPE html>
+            <html>
+              <body style="font-family: Arial, sans-serif; color: #333;">
+                <div style="max-width: 600px; margin: 20px auto; border: 1px solid #ddd; padding: 20px;">
+                  <div style="text-align: center; margin-bottom: 20px;">
+                    <img src="https://raw.githubusercontent.com/presidio-oss/hai-build-codegen/afad79317dfabbf54b45639d17f5c1abbcb13905/assets/img/hai_build_logo_theme.png" alt="Header Logo">
+                  </div>
+                  <h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">Existing PR Updated</h2>
+                  <p>New changes found in <b>Cline Repository</b>.</p>
+                  <p>The existing sync PR has been updated with the latest commits.</p>
+                  <p>View the update here: <a href="${{ steps.sync_upstream.outputs.pr_url }}">${{ steps.sync_upstream.outputs.pr_url }}</a></p>
+                  <p style="font-size: 12px; color: #7f8c8d; border-top: 1px solid #eeeeee; padding-top: 15px;">
+                    This is an automated notification from your GitHub Actions pipeline.
+                  </p>
+                </div>
+              </body>
+            </html>
