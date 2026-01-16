@@ -93,13 +93,13 @@ jobs:
         if: steps.sync_upstream.outputs.pr_created == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: email-smtp.us-east-1.amazonaws.com
+          server_address: email-smtp.us-west-2.amazonaws.com
           server_port: 587
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "HAI Code Gen - New PR Created With Latest Changes [Upstream Sync]"
           to: ${{ secrets.MAIL_TO }}
-          from: ${{ secrets.MAIL_FROM }}
+          from: HAI Build CodeGen <${{ secrets.MAIL_FROM }}>
           html_body: |
             <!DOCTYPE html>
             <html>
@@ -135,7 +135,7 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "HAI Code Gen - Existing PR Updated With New Commits [Upstream Sync]"
           to: ${{ secrets.MAIL_TO }}
-          from: ${{ secrets.MAIL_FROM }}
+          from: HAI Build CodeGen <${{ secrets.MAIL_FROM }}>
           html_body: |
             <!DOCTYPE html>
             <html>
