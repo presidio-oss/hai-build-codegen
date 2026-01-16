@@ -129,7 +129,7 @@ jobs:
         if: steps.sync_upstream.outputs.new_changes_found == 'true' 
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: email-smtp.us-east-1.amazonaws.com
+          server_address: email-smtp.us-west-2.amazonaws.com
           server_port: 587
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
