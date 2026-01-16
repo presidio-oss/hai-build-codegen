@@ -99,7 +99,7 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "HAI Code Gen - New PR Created With Latest Changes [Upstream Sync]"
           to: ${{ secrets.MAIL_TO }}
-          from: HAI Build CodeGen <${{ secrets.MAIL_FROM }}>
+          from: HAI Code Gen <${{ secrets.MAIL_FROM }}>
           html_body: |
             <!DOCTYPE html>
             <html>
@@ -135,7 +135,7 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "HAI Code Gen - Existing PR Updated With New Commits [Upstream Sync]"
           to: ${{ secrets.MAIL_TO }}
-          from: HAI Build CodeGen <${{ secrets.MAIL_FROM }}>
+          from: HAI Code Gen <${{ secrets.MAIL_FROM }}>
           html_body: |
             <!DOCTYPE html>
             <html>
@@ -147,7 +147,12 @@ jobs:
                   <h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">Existing PR Updated</h2>
                   <p>New changes found in <b>Cline Repository</b>.</p>
                   <p>The existing sync PR has been updated with the latest commits.</p>
-                  <p>View the update here: <a href="${{ steps.sync_upstream.outputs.pr_url }}">${{ steps.sync_upstream.outputs.pr_url }}</a></p>
+                  <div style="margin: 30px 0; text-align: center;">
+                    <a href="${{ steps.sync_upstream.outputs.pr_url }}"
+                       style="background-color: #3498db; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                       View Pull Request
+                    </a>
+                  </div>
                   <p style="font-size: 12px; color: #7f8c8d; border-top: 1px solid #eeeeee; padding-top: 15px;">
                     This is an automated notification from your GitHub Actions pipeline.
                   </p>
