@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.12.0]
+
+### Added
+
+- Added Upstream Auto Sync PR generation and updation
+
+### Enhancements
+
+- Integrated Specifai MCP server.
+- Refactored the code to support installation and integration with any custom MCP server.
+
+### Fixed
+
+- Fixed custom Posthog telemetry issue.
+
 ## [3.11.0]
 
 ### Added
