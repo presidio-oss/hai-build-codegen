@@ -10,7 +10,7 @@ export const LOCK_TEXT_SYMBOL = "\u{1F512}"
 /**
  * Controls LLM access to files by enforcing ignore patterns.
  * Designed to be instantiated once in Cline.ts and passed to file manipulation services.
- * Uses the 'ignore' library to support standard .gitignore syntax in .clineignore files.
+ * Uses the 'ignore' library to support standard .gitignore syntax in .haiignore files.
  */
 export class ClineIgnoreController {
 	private cwd: string
@@ -38,7 +38,7 @@ export class ClineIgnoreController {
 	 * Set up the file watcher for .clineignore changes
 	 */
 	private setupFileWatcher(): void {
-		const ignorePath = path.join(this.cwd, ".clineignore")
+		const ignorePath = path.join(this.cwd, ".haiignore")
 
 		this.fileWatcher = chokidar.watch(ignorePath, {
 			persistent: true, // Keep the process running as long as files are being watched
@@ -77,18 +77,18 @@ export class ClineIgnoreController {
 		try {
 			// Reset ignore instance to prevent duplicate patterns
 			this.ignoreInstance = ignore()
-			const ignorePath = path.join(this.cwd, ".clineignore")
+			const ignorePath = path.join(this.cwd, ".haiignore")
 			if (await fileExistsAtPath(ignorePath)) {
 				const content = await fs.readFile(ignorePath, "utf8")
 				this.clineIgnoreContent = content
 				await this.processIgnoreContent(content)
-				this.ignoreInstance.add(".clineignore")
+				this.ignoreInstance.add(".haiignore")
 			} else {
 				this.clineIgnoreContent = undefined
 			}
 		} catch (error) {
 			// Should never happen: reading file failed even though it exists
-			Logger.error("Unexpected error loading .clineignore:", error)
+			Logger.error("Unexpected error loading .haiignore:", error)
 		}
 	}
 
@@ -140,7 +140,7 @@ export class ClineIgnoreController {
 		const resolvedIncludePath = path.join(this.cwd, includePath)
 
 		if (!(await fileExistsAtPath(resolvedIncludePath))) {
-			Logger.debug(`[ClineIgnore] Included file not found: ${resolvedIncludePath}`)
+			Logger.debug(`[HaiIgnore] Included file not found: ${resolvedIncludePath}`)
 			return null
 		}
 

@@ -26,9 +26,13 @@ const MockApp = () => {
 				)
 			) : (
 				<ChatView
+					haiConfigFolder=""
 					hideAnnouncement={() => {}}
 					isHidden={false}
+					onTaskSelect={() => {}}
+					selectedHaiTask={null}
 					showAnnouncement={showAnnouncement}
+					showHaiTaskListView={() => {}}
 					showHistoryView={() => {}}
 				/>
 			)}
@@ -48,7 +52,7 @@ const meta: Meta<typeof MockApp> = {
 		docs: {
 			description: {
 				component: `
-The ChatView component is the main interface for interacting with Cline. It provides a comprehensive chat experience with AI assistance, task management, and various tools.
+The ChatView component is the main interface for interacting with HAI. It provides a comprehensive chat experience with AI assistance, task management, and various tools.
 
 **Key Features:**
 - **Task Management**: Create, resume, and manage AI-assisted tasks
@@ -322,7 +326,7 @@ export const Onboarding: Story = {
 		const canvas = within(canvasElement)
 
 		// Step 0: User type selection should be visible
-		const title = canvas.getByText("How will you use Cline?")
+		const title = canvas.getByText("How will you use HAI?")
 		await expect(title).toBeInTheDocument()
 		const freeUserOption = canvas.getByText("Absolutely Free")
 		const powerUserOption = canvas.getByText("Frontier Model")
@@ -369,7 +373,7 @@ export const Onboarding: Story = {
 		await userEvent.click(backButton)
 
 		// Should be back to user type selection
-		await expect(canvas.getByText("How will you use Cline?")).toBeInTheDocument()
+		await expect(canvas.getByText("How will you use HAI?")).toBeInTheDocument()
 
 		// Test power user flow
 		await userEvent.click(powerUserOption)
@@ -412,7 +416,7 @@ export const ActiveConversation: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "An active conversation showing a typical interaction with Cline, including task creation, tool usage, and AI responses.",
+				story: "An active conversation showing a typical interaction with HAI, including task creation, tool usage, and AI responses.",
 			},
 		},
 	},
@@ -534,7 +538,7 @@ export const ErrorState: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "Shows how Cline handles and displays error messages, helping users understand and resolve issues.",
+				story: "Shows how HAI handles and displays error messages, helping users understand and resolve issues.",
 			},
 		},
 	},
@@ -552,7 +556,7 @@ export const AutoApprovalEnabled: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "Shows the interface with auto-approval enabled, allowing Cline to execute certain actions automatically without user confirmation.",
+				story: "Shows the interface with auto-approval enabled, allowing HAI to execute certain actions automatically without user confirmation.",
 			},
 		},
 	},
@@ -585,7 +589,7 @@ export const PlanMode: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "Shows Cline in Plan mode, where it focuses on creating detailed plans and discussing approaches before implementation.",
+				story: "Shows HAI in Plan mode, where it focuses on creating detailed plans and discussing approaches before implementation.",
 			},
 		},
 	},
@@ -621,7 +625,7 @@ export const BrowserAutomation: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "Shows Cline performing browser automation tasks, including launching browsers, clicking elements, and testing web applications.",
+				story: "Shows HAI performing browser automation tasks, including launching browsers, clicking elements, and testing web applications.",
 			},
 		},
 	},
@@ -746,7 +750,7 @@ export const Followup = quickStory(
 	"Follow-up",
 	"followup",
 	"What would you like me to work on next?",
-	"Shows followup question state where Cline asks for next steps.",
+	"Shows followup question state where HAI asks for next steps.",
 )
 export const ResumeTask = quickStory(
 	"Resume Task",
@@ -775,7 +779,7 @@ export const PlanModeResponse = quickStory(
 	"Plan Mode Response",
 	"plan_mode_respond",
 	"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.\n\n\n\n\nPhase 1: TypeScript Migration\n1. Set up TypeScript in the project\n2. Rename .js files to .tsx/.ts\n3. Add type definitions for components and props\n4. Fix type errors and ensure type safety\n\nPhase 2: Performance Optimization\n1. Analyze current performance bottlenecks\n2. Implement code-splitting and lazy loading\n3. Optimize rendering with React.memo and useCallback\n4. Minimize bundle size with tree-shaking and minification\n5. Test performance improvements using profiling tools",
-	"Shows plan mode response where Cline presents a detailed plan for user approval.",
+	"Shows plan mode response where HAI presents a detailed plan for user approval.",
 )
 export const CondenseConversation = quickStory(
 	"Condense Conversation",
@@ -787,8 +791,8 @@ export const ReportBug = quickStory(
 	"Report Bug",
 	"report_bug",
 	JSON.stringify({
-		steps_to_reproduce: "1. Open Cline\n2. Start a new task\n3. Observe the error",
-		what_happened: "Cline crashes unexpectedly",
+		steps_to_reproduce: "1. Open HAI\n2. Start a new task\n3. Observe the error",
+		what_happened: "HAI crashes unexpectedly",
 	}),
 	"Shows utility action to report bugs to the GitHub repository.",
 )

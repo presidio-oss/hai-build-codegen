@@ -1,10 +1,11 @@
-import { McpServer } from "@shared/mcp"
+import { McpDownloadResponse as McpDownloadResponseType, McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/cline/common"
 import { McpDownloadResponse } from "@shared/proto/cline/mcp"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
+import { getLocalMcpDetails, isLocalMcp } from "@/utils/local-mcp-registry"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
@@ -31,24 +32,33 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 			throw new Error("This MCP server is already installed")
 		}
 
-		// Fetch server details from marketplace
-		const response = await axios.post<McpDownloadResponse>(
-			`${ClineEnv.config().mcpBaseUrl}/download`,
-			{ mcpId },
-			{
-				headers: { "Content-Type": "application/json" },
-				timeout: 10000,
-				...getAxiosSettings(),
-			},
-		)
+		let mcpDetails: McpDownloadResponseType
 
-		if (!response.data) {
-			throw new Error("Invalid response from MCP marketplace API")
+		// Check if this is a local MCP
+		if (isLocalMcp(mcpId)) {
+			// Get details from local registry
+			mcpDetails = await getLocalMcpDetails(mcpId)
+			Logger.log("[downloadMcp] Using local data for MCP server", { mcpDetails })
+		} else {
+			// Fetch server details from marketplace
+			const response = await axios.post<McpDownloadResponseType>(
+				`${ClineEnv.config().mcpBaseUrl}/download`,
+				{ mcpId },
+				{
+					headers: { "Content-Type": "application/json" },
+					timeout: 10000,
+					...getAxiosSettings(),
+				},
+			)
+
+			if (!response.data) {
+				throw new Error("Invalid response from MCP marketplace API")
+			}
+
+			Logger.log("[downloadMcp] Response from download API", { response })
+
+			mcpDetails = response.data
 		}
-
-		Logger.log("[downloadMcp] Response from download API", { response })
-
-		const mcpDetails = response.data
 
 		// Validate required fields
 		if (!mcpDetails.githubUrl) {
@@ -61,9 +71,9 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 		// Create task with context from README and added guidelines for MCP server installation
 		const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
 - Start by loading the MCP documentation.
-- Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
+- Use "${mcpDetails.mcpId}" as the server name in hai_mcp_settings.json.
 - Create the directory for the new MCP server before starting installation.
-- Make sure you read the user's existing cline_mcp_settings.json file before editing it with this new mcp, to not overwrite any existing servers.
+- Make sure you read the user's existing hai_mcp_settings.json file before editing it with this new mcp, to not overwrite any existing servers.
 - Use commands aligned with the user's shell and operating system best practices.
 - The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
 - Once installed, demonstrate the server's capabilities by using one of its tools.

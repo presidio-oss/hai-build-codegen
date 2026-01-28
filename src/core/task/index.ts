@@ -22,7 +22,6 @@ import {
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { CommandPermissionController } from "@core/permissions"
 import { summarizeTask } from "@core/prompts/contextManagement"
@@ -70,6 +69,8 @@ import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
+import * as vscode from "vscode"
+import { ClineIgnoreController } from "@/core/ignore/ClineIgnoreController"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
@@ -492,10 +493,10 @@ export class Task {
 
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.ulid, currentProvider, openAiCompatibleDomain)
+			// telemetryService.captureTaskRestarted(this.ulid, currentProvider, openAiCompatibleDomain)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.ulid, currentProvider, openAiCompatibleDomain)
+			// telemetryService.captureTaskCreated(this.ulid, currentProvider, openAiCompatibleDomain)
 		}
 
 		// Initialize command executor with config and callbacks
@@ -945,7 +946,7 @@ export class Task {
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
-			Logger.error("Failed to initialize ClineIgnoreController:", error)
+			Logger.error("Failed to initialize HaiIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
@@ -1067,7 +1068,7 @@ export class Task {
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
-			Logger.error("Failed to initialize ClineIgnoreController:", error)
+			Logger.error("Failed to initialize HaiIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
 
@@ -2409,11 +2410,11 @@ export class Task {
 			)
 		}
 
-		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
+		// error handling if the user uses the /newrule command & their .hairules is a file, for file read operations didnt work properly
 		if (clinerulesError === true) {
 			await this.say(
 				"error",
-				"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
+				"Issue with processing the /newrule command. Double check that, if '.hairules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
 			)
 		}
 

@@ -139,7 +139,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		const ignoredFileAttemptedToAccess = config.services.clineIgnoreController.validateCommand(actualCommand)
 		if (ignoredFileAttemptedToAccess) {
 			await config.callbacks.say("clineignore_error", ignoredFileAttemptedToAccess)
-			return formatResponse.toolError(formatResponse.clineIgnoreError(ignoredFileAttemptedToAccess))
+			return formatResponse.toolError(formatResponse.haiIgnoreError(ignoredFileAttemptedToAccess))
 		}
 
 		let didAutoApprove = false
@@ -162,15 +162,15 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		// Capture workspace path resolution telemetry
 		if (config.isMultiRootEnabled && config.workspaceManager) {
-			telemetryService.captureWorkspacePathResolved(
-				config.ulid,
-				"ExecuteCommandToolHandler",
-				workspaceHintUsed ? "hint_provided" : "fallback_to_primary",
-				workspaceHintUsed ? "workspace_name" : undefined,
-				resolvedToNonPrimary, // resolution success = resolved to different workspace
-				undefined, // TODO: could calculate workspace index if needed
-				true,
-			)
+			// telemetryService.captureWorkspacePathResolved(
+			// 	config.ulid,
+			// 	"ExecuteCommandToolHandler",
+			// 	workspaceHintUsed ? "hint_provided" : "fallback_to_primary",
+			// 	workspaceHintUsed ? "workspace_name" : undefined,
+			// 	resolvedToNonPrimary, // resolution success = resolved to different workspace
+			// 	undefined, // TODO: could calculate workspace index if needed
+			// 	true,
+			// )
 		}
 
 		if ((!requiresApprovalPerLLM && autoApproveSafe) || (requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)) {
@@ -191,7 +191,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		} else {
 			// Manual approval flow
 			showNotificationForApproval(
-				`Cline wants to execute a command: ${actualCommand}`,
+				`HAI wants to execute a command: ${actualCommand}`,
 				config.autoApprovalSettings.enableNotifications,
 			)
 

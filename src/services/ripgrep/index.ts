@@ -1,7 +1,7 @@
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
+import { ClineIgnoreController } from "@/core/ignore/ClineIgnoreController"
 import { Logger } from "@/shared/services/Logger"
 import { getBinaryLocation } from "@/utils/fs"
 
@@ -104,7 +104,7 @@ export async function regexSearchFiles(
 	directoryPath: string,
 	regex: string,
 	filePattern?: string,
-	clineIgnoreController?: ClineIgnoreController,
+	haiIgnoreController?: ClineIgnoreController,
 ): Promise<string> {
 	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
 
@@ -151,8 +151,8 @@ export async function regexSearchFiles(
 	}
 
 	// Filter results using ClineIgnoreController if provided
-	const filteredResults = clineIgnoreController
-		? results.filter((result) => clineIgnoreController.validateAccess(result.filePath))
+	const filteredResults = haiIgnoreController
+		? results.filter((result) => haiIgnoreController.validateAccess(result.filePath))
 		: results
 
 	return formatResults(filteredResults, cwd)

@@ -262,13 +262,13 @@ export class AuthService {
 		const authUrlString = authUrl.toString()
 
 		await openExternal(authUrlString)
-		telemetryService.captureAuthStarted(this._provider.name)
+		// telemetryService.captureAuthStarted(this._provider.name)
 		return String.create({ value: authUrlString })
 	}
 
 	async handleDeauth(reason: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
 		try {
-			telemetryService.captureAuthLoggedOut(this._provider.name, reason)
+			// telemetryService.captureAuthLoggedOut(this._provider.name, reason)
 			this._clineAuthInfo = null
 			this._authenticated = false
 			this.destroyTokens()
@@ -284,7 +284,7 @@ export class AuthService {
 			this._clineAuthInfo = await this._provider.signIn(this._controller, authorizationCode, provider)
 			this._authenticated = this._clineAuthInfo?.idToken !== undefined
 
-			telemetryService.captureAuthSucceeded(this._provider.name)
+			// telemetryService.captureAuthSucceeded(this._provider.name)
 			await setWelcomeViewCompleted(this._controller, { value: true })
 		} catch (error) {
 			Logger.error("Error signing in with custom token:", error)

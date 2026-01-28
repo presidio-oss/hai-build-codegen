@@ -46,7 +46,7 @@ export const getGlobalClineRules = async (
 					activatedConditionalRules.push(...rulesFilesTotal.activatedConditionalRules)
 				}
 			} catch {
-				Logger.error(`Failed to read .clinerules directory at ${globalClineRulesFilePath}`)
+				Logger.error(`Failed to read .hairules directory at ${globalClineRulesFilePath}`)
 			}
 		} else {
 			Logger.error(`${globalClineRulesFilePath} is not a directory`)
@@ -92,9 +92,9 @@ export const getLocalClineRules = async (
 		if (await isDirectory(clineRulesFilePath)) {
 			try {
 				const rulesFilePaths = await readDirectory(clineRulesFilePath, [
-					[".clinerules", "workflows"],
-					[".clinerules", "hooks"],
-					[".clinerules", "skills"],
+					[".hairules", "workflows"],
+					[".hairules", "hooks"],
+					[".hairules", "skills"],
 				])
 
 				const rulesFilesTotal = await getRuleFilesTotalContentWithMetadata(rulesFilePaths, cwd, toggles, {
@@ -106,7 +106,7 @@ export const getLocalClineRules = async (
 					activatedConditionalRules.push(...rulesFilesTotal.activatedConditionalRules)
 				}
 			} catch {
-				Logger.error(`Failed to read .clinerules directory at ${clineRulesFilePath}`)
+				Logger.error(`Failed to read .hairules directory at ${clineRulesFilePath}`)
 			}
 		} else {
 			try {
@@ -138,7 +138,7 @@ export const getLocalClineRules = async (
 					}
 				}
 			} catch {
-				Logger.error(`Failed to read .clinerules file at ${clineRulesFilePath}`)
+				Logger.error(`Failed to read .hairules file at ${clineRulesFilePath}`)
 			}
 		}
 	}
@@ -163,9 +163,9 @@ export async function refreshClineRulesToggles(
 	const localClineRulesToggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 	const localClineRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.clineRules)
 	const updatedLocalToggles = await synchronizeRuleToggles(localClineRulesFilePath, localClineRulesToggles, "", [
-		[".clinerules", "workflows"],
-		[".clinerules", "hooks"],
-		[".clinerules", "skills"],
+		[".hairules", "workflows"],
+		[".hairules", "hooks"],
+		[".hairules", "skills"],
 	])
 	controller.stateManager.setWorkspaceState("localClineRulesToggles", updatedLocalToggles)
 

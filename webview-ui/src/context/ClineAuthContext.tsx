@@ -46,7 +46,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	}, [userOrganizations])
 
 	useEffect(() => {
-		console.log("Extension: ClineAuthContext: user updated:", user?.uid)
+		console.log("Extension: HAIAuthContext: user updated:", user?.uid)
 	}, [user?.uid])
 
 	// Handle auth status update events
@@ -98,7 +98,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 export const useClineAuth = () => {
 	const context = useContext(ClineAuthContext)
 	if (context === undefined) {
-		throw new Error("useClineAuth must be used within a ClineAuthProvider")
+		throw new Error("useHAIAuth must be used within a HAIAuthProvider")
 	}
 	return context
 }

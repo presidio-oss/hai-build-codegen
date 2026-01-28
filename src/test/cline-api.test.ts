@@ -3,11 +3,11 @@ import * as should from "should"
 import * as sinon from "sinon"
 import { createClineAPI } from "@/exports"
 import { Logger } from "@/shared/services/Logger"
-import type { ClineAPI } from "../exports/cline"
+import type { HAIAPI } from "../exports/hai"
 import { setVscodeHostProviderMock } from "./host-provider-test-utils"
 
-describe("ClineAPI Core Functionality", () => {
-	let api: ClineAPI
+describe("HaiAPI Core Functionality", () => {
+	let api: HAIAPI
 	let mockController: any
 	let mockLoggerError: sinon.SinonStub
 	let sandbox: sinon.SinonSandbox

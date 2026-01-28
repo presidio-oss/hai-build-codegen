@@ -23,37 +23,31 @@ export interface PostHogClientValidConfig extends PostHogClientConfig {
 }
 
 /**
- * NOTE: Ensure that dev environment is not used in production.
- * process.env.CI will always be true in the CI environment, during both testing and publishing step,
- * so it is not a reliable indicator of the environment.
+ * NOTE: PostHog default configuration is disabled.
+ * PostHog is now only used when custom config is provided in .hai.config file.
+ * Langfuse is the primary telemetry provider with pipeline defaults.
+ *
+ * The exports below are kept for backwards compatibility with other services
+ * (error tracking, feature flags) but will return invalid/empty config.
  */
-const useDevEnv = process.env.IS_DEV === "true" || process.env.CLINE_ENVIRONMENT === "local"
 
 /**
- * PostHog configuration for Production Environment.
- * NOTE: The production environment variables will be injected at build time in CI/CD pipeline.
- * IMPORTANT: The secrets must be added to the GitHub Secrets and matched with the environment variables names
- * defined in the .github/workflows/publish.yml workflow.
- * NOTE: The development environment variables should be retrieved from 1password shared vault.
+ * Empty PostHog config - PostHog is only configured via .hai.config file
+ * This export is kept for backwards compatibility but will fail isPostHogConfigValid check
  */
 export const posthogConfig: PostHogClientConfig = {
-	apiKey: BUILD_CONSTANTS.TELEMETRY_SERVICE_API_KEY,
-	errorTrackingApiKey: BUILD_CONSTANTS.ERROR_SERVICE_API_KEY,
-	host: "https://data.cline.bot",
-	uiHost: useDevEnv ? "https://us.i.posthog.com" : "https://us.posthog.com",
+	apiKey: undefined,
+	errorTrackingApiKey: undefined,
+	host: "",
+	uiHost: "",
 }
 
-const isTestEnv = process.env.E2E_TEST === "true" || process.env.IS_TEST === "true"
-
-export function isPostHogConfigValid(config: PostHogClientConfig): config is PostHogClientValidConfig {
-	// Allow invalid config in test environment to enable mocking and stubbing
-	if (isTestEnv) {
-		return false
-	}
-	return (
-		typeof config.apiKey === "string" &&
-		typeof config.errorTrackingApiKey === "string" &&
-		typeof config.host === "string" &&
-		typeof config.uiHost === "string"
-	)
+/**
+ * Validates PostHog config - always returns false since no default config is provided
+ * PostHog can only be enabled via custom .hai.config file
+ */
+export function isPostHogConfigValid(_config: PostHogClientConfig): _config is PostHogClientValidConfig {
+	// PostHog default config is disabled - always return false
+	// PostHog can only be enabled via .hai.config file
+	return false
 }

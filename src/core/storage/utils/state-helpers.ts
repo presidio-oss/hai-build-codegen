@@ -29,10 +29,16 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 export async function readWorkspaceStateFromDisk(context: ExtensionContext): Promise<LocalState> {
 	const states = LocalStateKeys.map((key) => context.workspaceState.get<ClineRulesToggles | undefined>(key))
 
-	return LocalStateKeys.reduce((acc, key, index) => {
+	const result = LocalStateKeys.reduce((acc, key, index) => {
 		acc[key] = states[index] || {}
 		return acc
 	}, {} as LocalState)
+
+	// Also read HAI task-related keys which are part of LocalState but not in LocalStateKeys
+	result.haiConfig = context.workspaceState.get("haiConfig")
+	result.haiTaskList = context.workspaceState.get("haiTaskList")
+
+	return result
 }
 
 export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalStateAndSettings> {

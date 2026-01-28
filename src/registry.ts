@@ -1,6 +1,6 @@
 import { name, publisher, version } from "../package.json"
 
-const prefix = name === "claude-dev" ? "cline" : name
+const prefix = "hai"
 
 /**
  * List of commands with the name of the extension they are registered under.
@@ -29,6 +29,9 @@ const ClineCommands = {
 	JupyterGenerateCell: prefix + ".jupyterGenerateCell",
 	JupyterExplainCell: prefix + ".jupyterExplainCell",
 	JupyterImproveCell: prefix + ".jupyterImproveCell",
+
+	//HAI specific commands
+	TaskListClicked: prefix + ".haiBuildTaskListClicked",
 }
 
 /**

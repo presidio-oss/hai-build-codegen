@@ -11,7 +11,7 @@ import {
 	ToggleWindsurfRuleRequest,
 	ToggleWorkflowRequest,
 } from "@shared/proto/cline/file"
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
@@ -259,7 +259,7 @@ const ClineRulesToggleModal: React.FC = () => {
 				}
 			})
 			.catch((error) => {
-				console.error("Error toggling Cline rule:", error)
+				console.error("Error toggling HAI rule:", error)
 			})
 	}
 
@@ -443,11 +443,11 @@ const ClineRulesToggleModal: React.FC = () => {
 		<div className="inline-flex min-w-0 max-w-full items-center" ref={modalRef}>
 			<div className="inline-flex w-full items-center" ref={buttonRef}>
 				<Tooltip>
-					{!isVisible && <TooltipContent>Manage Cline Rules & Workflows</TooltipContent>}
+					{!isVisible && <TooltipContent>Manage HAI Rules & Workflows</TooltipContent>}
 					<TooltipTrigger>
 						<VSCodeButton
 							appearance="icon"
-							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
+							aria-label={isVisible ? "Hide HAI Rules & Workflows" : "Show HAI Rules & Workflows"}
 							className="p-0 m-0 flex items-center"
 							onClick={() => setIsVisible(!isVisible)}>
 							<i className="codicon codicon-law" style={{ fontSize: "12.5px" }} />
@@ -508,25 +508,14 @@ const ClineRulesToggleModal: React.FC = () => {
 						<div className="text-xs text-description mb-4">
 							{currentView === "rules" ? (
 								<p>
-									Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way
+									Rules allow you to provide HAI with system-level guidance. Think of them as a persistent way
 									to include context and preferences for your projects or globally for every conversation.{" "}
-									<VSCodeLink
-										className="text-xs"
-										href="https://docs.cline.bot/features/cline-rules"
-										style={{ display: "inline", fontSize: "inherit" }}>
-										Docs
-									</VSCodeLink>
 								</p>
 							) : currentView === "workflows" ? (
 								<p>
-									Workflows allow you to define a series of steps to guide Cline through a repetitive set of
+									Workflows allow you to define a series of steps to guide HAI through a repetitive set of
 									tasks, such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
 									<span className="text-foreground font-bold">/workflow-name</span> in the chat.{" "}
-									<VSCodeLink
-										className="text-xs inline"
-										href="https://docs.cline.bot/features/slash-commands/workflows">
-										Docs
-									</VSCodeLink>
 								</p>
 							) : currentView === "skills" ? (
 								<p>
@@ -536,7 +525,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								</p>
 							) : (
 								<p>
-									Hooks allow you to execute custom scripts at specific points in Cline's execution lifecycle,
+									Hooks allow you to execute custom scripts at specific points in HAI's execution lifecycle,
 									enabling automation and integration with external tools.
 								</p>
 							)}
@@ -689,15 +678,7 @@ const ClineRulesToggleModal: React.FC = () => {
 						) : currentView === "hooks" ? (
 							<>
 								<div className="text-xs text-description mb-4">
-									<p>
-										Toggle to enable/disable (chmod +x/-x).{" "}
-										<VSCodeLink
-											className="text-xs"
-											href="https://docs.cline.bot/features/hooks"
-											style={{ display: "inline", fontSize: "inherit" }}>
-											Docs
-										</VSCodeLink>
-									</p>
+									<p>Toggle to enable/disable (chmod +x/-x). </p>
 								</div>
 								{/* Hooks Tab */}
 								{/* Windows warning banner */}
@@ -748,9 +729,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									<div
 										className={index === workspaceHooks.length - 1 ? "-mb-2.5" : "mb-3"}
 										key={workspace.workspaceName}>
-										<div className="text-sm font-normal mb-2">
-											{workspace.workspaceName}/.clinerules/hooks/
-										</div>
+										<div className="text-sm font-normal mb-2">{workspace.workspaceName}/.hairules/hooks/</div>
 										<div className="flex flex-col gap-0">
 											{workspace.hooks
 												.sort((a, b) => a.name.localeCompare(b.name))

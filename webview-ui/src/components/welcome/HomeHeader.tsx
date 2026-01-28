@@ -1,6 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
-import ClineLogoSanta from "@/assets/ClineLogoSanta"
 import ClineLogoVariable from "@/assets/ClineLogoVariable"
+import HAILogo from "@/assets/HAILogo"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { UiServiceClient } from "@/services/grpc-client"
 
@@ -20,16 +20,43 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 	}
 
 	// Check if it's December for festive logo
-	const isDecember = new Date().getMonth() === 11 // 11 = December (0-indexed)
-	const LogoComponent = isDecember ? ClineLogoSanta : ClineLogoVariable
+	const isHAILogo = true
+	const LogoComponent = isHAILogo ? HAILogo : ClineLogoVariable
 
 	return (
 		<div className="flex flex-col items-center mb-5">
-			<div className="my-7">
-				<LogoComponent className="size-20" environment={environment} />
+			<style>
+				{`
+					@keyframes logo-pop-in {
+						0% {
+							opacity: 0;
+							transform: scale(0.95);
+						}
+						60% {
+							opacity: 1;
+							transform: scale(1.02);
+						}
+						100% {
+							opacity: 1;
+							transform: scale(1);
+						}
+					}
+					.logo-animate {
+						animation: logo-pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+					}
+				`}
+			</style>
+			<div className="my-7 logo-animate">
+				<LogoComponent className="pl-10 pr-10" environment={environment} />
 			</div>
-			<div className="text-center flex items-center justify-center px-4">
-				<h1 className="m-0 font-bold">What can I do for you?</h1>
+			<div className="text-center items-center justify-center">
+				<h1 className="m-0 font-bold">How can I help you today?</h1>
+				<p className="p-10 text-start">
+					I can handle complex software development tasks step-by-step. With tools that let me create & edit files,
+					explore complex projects, use the browser, and execute terminal commands (after you grant permission), I can
+					assist you in ways that go beyond code completion or tech support. I can even use MCP to create new tools and
+					extend my own capabilities.
+				</p>
 			</div>
 			{shouldShowQuickWins && (
 				<div className="mt-4">

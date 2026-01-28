@@ -94,7 +94,7 @@ export const BROWSER_ACTIONS = ["launch", "click", "type", "scroll_down", "scrol
 /**
  * Common validation error patterns
  */
-export const VALIDATION_ERROR_PATTERNS = ["Missing required parameter", "blocked by .clineignore"] as const
+export const VALIDATION_ERROR_PATTERNS = ["Missing required parameter", "blocked by .haiignore"] as const
 
 /**
  * Type helpers for better type safety

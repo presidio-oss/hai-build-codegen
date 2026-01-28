@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
 import { resolve } from "path"
 import { defineConfig, type Plugin, ViteDevServer } from "vite"
+import svgr from "vite-plugin-svgr"
 
 // Custom plugin to write the server port to a file
 const writePortToFile = (): Plugin => {
@@ -41,7 +42,7 @@ export default defineConfig({
 	optimizeDeps: {
 		force: true, // Forces re-optimization
 	},
-	plugins: [react(), tailwindcss(), writePortToFile()],
+	plugins: [svgr(), react(), tailwindcss(), writePortToFile()],
 	test: {
 		environment: "jsdom",
 		globals: true,
