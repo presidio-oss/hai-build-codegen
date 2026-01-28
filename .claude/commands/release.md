@@ -1,0 +1,1 @@
+../../.hairules/workflows/release.md
