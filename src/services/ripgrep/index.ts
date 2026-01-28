@@ -1,7 +1,8 @@
 import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
-import { HAIIgnoreController } from "@/core/ignore/HAIIgnoreController"
+import { ClineIgnoreController } from "@/core/ignore/ClineIgnoreController"
+import { Logger } from "@/shared/services/Logger"
 import { getBinaryLocation } from "@/utils/fs"
 
 /*
@@ -103,7 +104,7 @@ export async function regexSearchFiles(
 	directoryPath: string,
 	regex: string,
 	filePattern?: string,
-	haiIgnoreController?: HAIIgnoreController,
+	haiIgnoreController?: ClineIgnoreController,
 ): Promise<string> {
 	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
 
@@ -140,7 +141,7 @@ export async function regexSearchFiles(
 					}
 				}
 			} catch (error) {
-				console.error("Error parsing ripgrep output:", error)
+				Logger.error("Error parsing ripgrep output:", error)
 			}
 		}
 	})
@@ -149,7 +150,7 @@ export async function regexSearchFiles(
 		results.push(currentResult as SearchResult)
 	}
 
-	// Filter results using HAIIgnoreController if provided
+	// Filter results using ClineIgnoreController if provided
 	const filteredResults = haiIgnoreController
 		? results.filter((result) => haiIgnoreController.validateAccess(result.filePath))
 		: results

@@ -2,6 +2,7 @@ import type { WorkspaceRoot } from "@shared/multi-root/types"
 import { HostProvider } from "@/hosts/host-provider"
 import type { HistoryItem } from "@/shared/HistoryItem"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { StateManager } from "../storage/StateManager"
 import { isMultiRootEnabled } from "./multi-root-utils"
@@ -33,7 +34,7 @@ export async function setupWorkspaceManager({
 			// Multi-root: detect workspace folders
 			const roots = await detectRoots()
 			manager = new WorkspaceRootManager(roots, 0)
-			console.log(`[WorkspaceManager] Multi-root mode: ${roots.length} roots detected`)
+			Logger.log(`[WorkspaceManager] Multi-root mode: ${roots.length} roots detected`)
 
 			// Telemetry
 			// telemetryService.captureWorkspaceInitialized(
@@ -55,7 +56,7 @@ export async function setupWorkspaceManager({
 		// 	if (savedRoots && savedRoots.length > 0) {
 		// 		const primaryIndex = stateManager.getPrimaryRootIndex()
 		// 		manager = new WorkspaceRootManager(savedRoots, primaryIndex)
-		// 		console.log(`[WorkspaceManager] Restored ${savedRoots.length} roots from state`)
+		// 		Logger.log(`[WorkspaceManager] Restored ${savedRoots.length} roots from state`)
 		// 		telemetryService.captureWorkspaceInitialized(
 		// 			savedRoots.length,
 		// 			savedRoots.map((r) => r.vcs.toString()),
@@ -81,7 +82,7 @@ export async function setupWorkspaceManager({
 		// 	false,
 		// )
 
-		console.log(`[WorkspaceManager] Single-root mode: ${cwd}`)
+		Logger.log(`[WorkspaceManager] Single-root mode: ${cwd}`)
 		const roots = manager.getRoots()
 		stateManager.setGlobalState("workspaceRoots", roots)
 		stateManager.setGlobalState("primaryRootIndex", manager.getPrimaryIndex())
@@ -91,7 +92,7 @@ export async function setupWorkspaceManager({
 		const workspaceCount = (await HostProvider.workspace.getWorkspacePaths({})).paths?.length
 		// telemetryService.captureWorkspaceInitError(error as Error, true, workspaceCount)
 
-		console.error("[WorkspaceManager] Initialization failed:", error)
+		Logger.error("[WorkspaceManager] Initialization failed:", error)
 		const manager = await WorkspaceRootManager.fromLegacyCwd(cwd)
 		const roots = manager.getRoots()
 		stateManager.setGlobalState("workspaceRoots", roots)

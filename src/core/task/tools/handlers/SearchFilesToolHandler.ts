@@ -8,6 +8,7 @@ import { WorkspacePathAdapter } from "@/core/workspace/WorkspacePathAdapter"
 import { resolveWorkspacePath } from "@/core/workspace/WorkspaceResolver"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApproval } from "../../utils"
@@ -89,7 +90,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 				absolutePath,
 				regex,
 				filePattern,
-				config.services.haiIgnoreController,
+				config.services.clineIgnoreController,
 			)
 
 			// Parse the result count from the first line
@@ -105,7 +106,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			}
 		} catch (error) {
 			// If search fails in one workspace, return error info
-			console.error(`Search failed in ${absolutePath}:`, error)
+			Logger.error(`Search failed in ${absolutePath}:`, error)
 			return {
 				workspaceName,
 				workspaceResults: "",

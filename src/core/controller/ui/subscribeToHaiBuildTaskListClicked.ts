@@ -1,4 +1,5 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -18,7 +19,7 @@ export async function subscribeToHaiBuildTaskListClicked(
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	console.log(`[DEBUG] set up haiBuildTaskListClicked subscription`)
+	Logger.log(`[DEBUG] set up haiBuildTaskListClicked subscription`)
 
 	// Set the active subscription
 	activeHaiBuildTaskListClickedSubscription = responseStream
@@ -42,7 +43,7 @@ export async function sendHaiBuildTaskListClickedEvent(): Promise<void> {
 	const responseStream = activeHaiBuildTaskListClickedSubscription
 
 	if (!responseStream) {
-		console.error(`[DEBUG] No active haiBuildTaskListClicked subscription`)
+		Logger.error(`[DEBUG] No active haiBuildTaskListClicked subscription`)
 		return
 	}
 
@@ -53,7 +54,7 @@ export async function sendHaiBuildTaskListClickedEvent(): Promise<void> {
 			false, // Not the last message
 		)
 	} catch (error) {
-		console.error(`Error sending haiBuildTaskListClicked event:`, error)
+		Logger.error(`Error sending haiBuildTaskListClicked event:`, error)
 		// Remove the subscription if there was an error
 		activeHaiBuildTaskListClickedSubscription = undefined
 	}

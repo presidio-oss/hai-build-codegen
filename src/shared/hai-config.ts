@@ -3,6 +3,7 @@ import * as path from "path"
 import { z } from "zod"
 import { GlobalFileNames } from "@/global-constants"
 import { getWorkspacePath } from "@/utils/path"
+import { Logger } from "./services/Logger"
 
 export const haiConfigSchema = z.object({
 	name: z.string().optional(),
@@ -37,7 +38,7 @@ export class HaiConfig {
 		// Parse hai config file
 		const configPath = path.join(workspacePath, GlobalFileNames.haiConfig)
 		if (!fs.existsSync(configPath)) {
-			console.log(`[HaiConfig]: ${configPath} does not exist`)
+			Logger.log(`[HaiConfig]: ${configPath} does not exist`)
 			return
 		}
 
@@ -74,7 +75,7 @@ export class HaiConfig {
 		// Validate the parsed content with schema
 		const { success, data, error } = haiConfigSchema.safeParse(config)
 		if (!success) {
-			console.error(`Error validating ${configPath}, Error: ${error}`)
+			Logger.error(`Error validating ${configPath}, Error: ${error}`)
 			return
 		}
 

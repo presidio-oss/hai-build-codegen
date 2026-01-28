@@ -3,6 +3,7 @@ import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCo
 import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions, SingleCompletionHandler } from "../"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -123,7 +124,7 @@ declare module "vscode" {
  * const systemPrompt = "You are a helpful assistant";
  * const messages = [{ role: "user", content: "Hello!" }];
  * for await (const chunk of handler.createMessage(systemPrompt, messages)) {
- *   console.log(chunk);
+ *   Logger.log(chunk);
  * }
  * ```
  */
@@ -147,7 +148,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 						this.client = null
 						this.ensureCleanState()
 					} catch (error) {
-						console.error("Error during configuration change cleanup:", error)
+						Logger.error("Error during configuration change cleanup:", error)
 					}
 				}
 			})
@@ -279,7 +280,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 
 	private async getClient(): Promise<vscode.LanguageModelChat> {
 		if (!this.client) {
-			console.debug("HAI <Language Model API>: Getting client with options:", {
+			Logger.debug("HAI <Language Model API>: Getting client with options:", {
 				vsCodeLmModelSelector: this.options.vsCodeLmModelSelector,
 				hasOptions: !!this.options,
 				selectorKeys: this.options.vsCodeLmModelSelector ? Object.keys(this.options.vsCodeLmModelSelector) : [],
@@ -288,11 +289,11 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			try {
 				// Use default empty selector if none provided to get all available models
 				const selector = this.options?.vsCodeLmModelSelector || {}
-				console.debug("HAI <Language Model API>: Creating client with selector:", selector)
+				Logger.debug("HAI <Language Model API>: Creating client with selector:", selector)
 				this.client = await this.createClient(selector)
 			} catch (error) {
 				const message = error instanceof Error ? error.message : "Unknown error"
-				console.error("HAI <Language Model API>: Client creation failed:", message)
+				Logger.error("HAI <Language Model API>: Client creation failed:", message)
 				throw new Error(`HAI <Language Model API>: Failed to create client: ${message}`)
 			}
 		}
@@ -413,7 +414,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				if (chunk instanceof vscode.LanguageModelTextPart) {
 					// Validate text part value
 					if (typeof chunk.value !== "string") {
-						console.warn("HAI <Language Model API>: Invalid text part value received:", chunk.value)
+						Logger.warn("HAI <Language Model API>: Invalid text part value received:", chunk.value)
 						continue
 					}
 
@@ -426,18 +427,18 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 					try {
 						// Validate tool call parameters
 						if (!chunk.name || typeof chunk.name !== "string") {
-							console.warn("HAI <Language Model API>: Invalid tool name received:", chunk.name)
+							Logger.warn("HAI <Language Model API>: Invalid tool name received:", chunk.name)
 							continue
 						}
 
 						if (!chunk.callId || typeof chunk.callId !== "string") {
-							console.warn("HAI <Language Model API>: Invalid tool callId received:", chunk.callId)
+							Logger.warn("HAI <Language Model API>: Invalid tool callId received:", chunk.callId)
 							continue
 						}
 
 						// Ensure input is a valid object
 						if (!chunk.input || typeof chunk.input !== "object") {
-							console.warn("HAI <Language Model API>: Invalid tool input received:", chunk.input)
+							Logger.warn("HAI <Language Model API>: Invalid tool input received:", chunk.input)
 							continue
 						}
 
@@ -453,7 +454,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 						accumulatedText += toolCallText
 
 						// Log tool call for debugging
-						console.debug("HAI <Language Model API>: Processing tool call:", {
+						Logger.debug("HAI <Language Model API>: Processing tool call:", {
 							name: chunk.name,
 							callId: chunk.callId,
 							inputSize: JSON.stringify(chunk.input).length,
@@ -464,10 +465,10 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 							text: toolCallText,
 						}
 					} catch (error) {
-						console.error("HAI <Language Model API>: Failed to process tool call:", error)
+						Logger.error("HAI <Language Model API>: Failed to process tool call:", error)
 					}
 				} else {
-					console.warn("HAI <Language Model API>: Unknown chunk type received:", chunk)
+					Logger.warn("HAI <Language Model API>: Unknown chunk type received:", chunk)
 				}
 			}
 
@@ -489,7 +490,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			}
 
 			if (error instanceof Error) {
-				console.error("HAI <Language Model API>: Stream error details:", {
+				Logger.error("HAI <Language Model API>: Stream error details:", {
 					message: error.message,
 					stack: error.stack,
 					name: error.name,
@@ -500,12 +501,12 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			} else if (typeof error === "object" && error !== null) {
 				// Handle error-like objects
 				const errorDetails = JSON.stringify(error, null, 2)
-				console.error("HAI <Language Model API>: Stream error object:", errorDetails)
+				Logger.error("HAI <Language Model API>: Stream error object:", errorDetails)
 				throw new Error(`HAI <Language Model API>: Response stream error: ${errorDetails}`)
 			} else {
 				// Fallback for unknown error types
 				const errorMessage = String(error)
-				console.error("HAI <Language Model API>: Unknown stream error:", errorMessage)
+				Logger.error("HAI <Language Model API>: Unknown stream error:", errorMessage)
 				throw new Error(`HAI <Language Model API>: Response stream error: ${errorMessage}`)
 			}
 		}
@@ -526,7 +527,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			// Log any missing properties for debugging
 			for (const [prop, value] of Object.entries(requiredProps)) {
 				if (!value && value !== 0) {
-					console.warn(`HAI <Language Model API>: Client missing ${prop} property`)
+					Logger.warn(`HAI <Language Model API>: Client missing ${prop} property`)
 				}
 			}
 
@@ -557,7 +558,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			? stringifyVsCodeLmModelSelector(this.options.vsCodeLmModelSelector)
 			: "vscode-lm"
 
-		console.debug("HAI <Language Model API>: No client available, using fallback model info")
+		Logger.debug("HAI <Language Model API>: No client available, using fallback model info")
 
 		return {
 			id: fallbackId,

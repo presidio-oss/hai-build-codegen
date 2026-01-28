@@ -1,6 +1,7 @@
 import { Langfuse, LangfuseTraceClient } from "langfuse"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { anthropicModels, bedrockModels, geminiModels, type ModelInfo, vertexModels } from "@/shared/api"
+import { Logger } from "@/shared/services/Logger"
 import { getGitUserInfo } from "@/utils/git"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./ITelemetryProvider"
 
@@ -110,7 +111,7 @@ export class LangfuseProvider implements ITelemetryProvider {
 				} as any)
 			}
 		} catch (error) {
-			console.error("[LangfuseProvider] Failed to log event:", error)
+			Logger.error("[LangfuseProvider] Failed to log event:", error)
 		}
 	}
 
@@ -129,7 +130,7 @@ export class LangfuseProvider implements ITelemetryProvider {
 				},
 			} as any)
 		} catch (error) {
-			console.error("[LangfuseProvider] Failed to log required event:", error)
+			Logger.error("[LangfuseProvider] Failed to log required event:", error)
 		}
 	}
 
@@ -154,9 +155,7 @@ export class LangfuseProvider implements ITelemetryProvider {
 		}
 	}
 
-	public name(): string {
-		return "langfuse"
-	}
+	public readonly name: string = "langfuse"
 
 	public recordCounter(
 		name: string,
@@ -180,7 +179,7 @@ export class LangfuseProvider implements ITelemetryProvider {
 				},
 			} as any) // Temporary type assertion until we fix the types
 		} catch (error) {
-			console.error("[LangfuseProvider] Failed to record counter:", error)
+			Logger.error("[LangfuseProvider] Failed to record counter:", error)
 		}
 	}
 
@@ -207,7 +206,7 @@ export class LangfuseProvider implements ITelemetryProvider {
 				},
 			} as any) // Temporary type assertion until we fix the types
 		} catch (error) {
-			console.error("[LangfuseProvider] Failed to record histogram:", error)
+			Logger.error("[LangfuseProvider] Failed to record histogram:", error)
 		}
 	}
 
@@ -235,7 +234,7 @@ export class LangfuseProvider implements ITelemetryProvider {
 				},
 			} as any) // Temporary type assertion until we fix the types
 		} catch (error) {
-			console.error("[LangfuseProvider] Failed to record gauge:", error)
+			Logger.error("[LangfuseProvider] Failed to record gauge:", error)
 		}
 	}
 
@@ -258,9 +257,9 @@ export class LangfuseProvider implements ITelemetryProvider {
 				},
 				...(isNew ? { timestamp: new Date() } : {}),
 			} as any) // Temporary type assertion until we fix the types
-			console.info(`[LangfuseProvider] Created trace for task ${taskId}`)
+			Logger.info(`[LangfuseProvider] Created trace for task ${taskId}`)
 		} catch (error) {
-			console.error("[LangfuseProvider] Failed to create trace:", error)
+			Logger.error("[LangfuseProvider] Failed to create trace:", error)
 		}
 	}
 
@@ -274,9 +273,9 @@ export class LangfuseProvider implements ITelemetryProvider {
 		try {
 			await this.langfuse.flushAsync()
 			await this.langfuse.shutdownAsync()
-			console.info("[LangfuseProvider] Disposed and flushed all events")
+			Logger.info("[LangfuseProvider] Disposed and flushed all events")
 		} catch (error) {
-			console.error("[LangfuseProvider] Error during dispose:", error)
+			Logger.error("[LangfuseProvider] Error during dispose:", error)
 		}
 	}
 

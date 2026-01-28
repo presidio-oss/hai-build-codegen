@@ -2,6 +2,7 @@ import * as fs from "fs/promises"
 import ignore from "ignore"
 import * as path from "path"
 import Watcher from "watcher"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../../core/controller"
 import { GlobalFileNames } from "../../global-constants"
 import { HaiBuildDefaults } from "../../shared/haiDefaults"
@@ -36,7 +37,7 @@ class HaiFileSystemWatcher {
 					),
 			)
 		} catch (error) {
-			console.log("HaiFileSystemWatcher No .gitignore found, using default exclusions.")
+			Logger.log("HaiFileSystemWatcher No .gitignore found, using default exclusions.")
 		}
 
 		this.ig.add([...HaiBuildDefaults.defaultDirsToIgnore, HaiBuildDefaults.defaultContextDirectory])
@@ -51,13 +52,13 @@ class HaiFileSystemWatcher {
 			ignoreInitial: true,
 			ignore: (targetPath: string) => {
 				if (!targetPath || targetPath.trim() === "") {
-					console.warn("HaiFileSystemWatcher Ignoring empty or invalid path.")
+					Logger.warn("HaiFileSystemWatcher Ignoring empty or invalid path.")
 					return true
 				}
 
 				const relativePath = path.relative(this.sourceFolder, targetPath)
 				if (relativePath.startsWith("..")) {
-					console.warn(`HaiFileSystemWatcher Path ${targetPath} is outside the workspace folder.`)
+					Logger.log(`HaiFileSystemWatcher Path ${targetPath} is outside the workspace folder.`)
 					return true
 				}
 
@@ -70,7 +71,7 @@ class HaiFileSystemWatcher {
 		})
 
 		this.watcher.on("unlink", (filePath: any) => {
-			console.log("HaiFileSystemWatcher File deleted", filePath)
+			Logger.log("HaiFileSystemWatcher File deleted", filePath)
 
 			// Check for .hai.config
 			if (this.isHaiConfigPath(filePath)) {
@@ -86,7 +87,7 @@ class HaiFileSystemWatcher {
 		})
 
 		this.watcher.on("add", (filePath) => {
-			console.log("HaiFileSystemWatcher File added", filePath)
+			Logger.log("HaiFileSystemWatcher File added", filePath)
 
 			// Check for .hai.config
 			if (this.isHaiConfigPath(filePath)) {
@@ -102,7 +103,7 @@ class HaiFileSystemWatcher {
 		})
 
 		this.watcher.on("change", (filePath) => {
-			console.log("HaiFileSystemWatcher File changes", filePath)
+			Logger.log("HaiFileSystemWatcher File changes", filePath)
 
 			// Check for .hai.config
 			if (this.isHaiConfigPath(filePath)) {

@@ -1,5 +1,6 @@
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 import { sendHaiTaskDataUpdate } from "./subscribeToHaiTaskData"
 
@@ -26,7 +27,7 @@ export async function resetHaiTasks(controller: Controller, _request: EmptyReque
 
 		return Empty.create({})
 	} catch (error) {
-		console.error(`Failed to reset HAI tasks: ${error}`)
+		Logger.error(`Failed to reset HAI tasks: ${error}`)
 		throw error
 	}
 }

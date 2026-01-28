@@ -1,5 +1,5 @@
 import type { ToolParamName, ToolUse } from "@core/assistant-message"
-import type { HAIIgnoreController } from "@/core/ignore/HAIIgnoreController"
+import type { ClineIgnoreController } from "@/core/ignore/ClineIgnoreController"
 
 export type ValidationResult = { ok: true } | { ok: false; error: string }
 
@@ -8,7 +8,7 @@ export type ValidationResult = { ok: true } | { ok: false; error: string }
  * The legacy ToolExecutor switch remains unchanged and does not depend on this.
  */
 export class ToolValidator {
-	constructor(private readonly haiIgnoreController: HAIIgnoreController) {}
+	constructor(private readonly clineIgnoreController: ClineIgnoreController) {}
 
 	/**
 	 * Verifies required parameters exist on the tool block.
@@ -30,7 +30,7 @@ export class ToolValidator {
 	 * Callers should pass a repo-relative (workspace-relative) path.
 	 */
 	checkHAIIgnorePath(relPath: string): ValidationResult {
-		const accessAllowed = this.haiIgnoreController.validateAccess(relPath)
+		const accessAllowed = this.clineIgnoreController.validateAccess(relPath)
 		if (!accessAllowed) {
 			return {
 				ok: false,

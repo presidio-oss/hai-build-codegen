@@ -560,7 +560,10 @@ console.log(JSON.stringify({
 		})
 	})
 
-	describe("Fixture-Based Tests", () => {
+	describe("Fixture-Based Tests", function () {
+		// Increase timeout for fixture-based tests since they involve file I/O and process spawning
+		this.timeout(10000)
+
 		const loadFixtureAndCreateRunner = async (fixtureName: string) => {
 			const { loadFixture } = await import("./test-utils")
 			await loadFixture(`hooks/taskresume/${fixtureName}`, tempDir)

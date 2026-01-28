@@ -41,7 +41,8 @@ export const TASK_SERVICES_KEYS = [
 	"urlContentFetcher",
 	"diffViewProvider",
 	"fileContextTracker",
-	"haiIgnoreController",
+	"clineIgnoreController",
+	"commandPermissionController",
 	"contextManager",
 	"stateManager",
 ] as const

@@ -7,6 +7,7 @@ import type { McpHub } from "@/services/mcp/McpHub"
 import type { BrowserSettings } from "@/shared/BrowserSettings"
 import type { FocusChainSettings } from "@/shared/FocusChainSettings"
 import { ModelFamily } from "@/shared/prompts"
+import type { SkillMetadata } from "@/shared/skills"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "./spec"
 import { SystemPromptSection } from "./templates/placeholders"
@@ -94,8 +95,13 @@ export interface SystemPromptContext {
 	readonly providerInfo: ApiProviderInfo
 	readonly cwd?: string
 	readonly ide: string
+	readonly editorTabs?: {
+		readonly open?: readonly string[]
+		readonly visible?: readonly string[]
+	}
 	readonly supportsBrowserUse?: boolean
 	readonly mcpHub?: McpHub
+	readonly skills?: SkillMetadata[]
 	readonly focusChainSettings?: FocusChainSettings
 	readonly globalClineRulesFileInstructions?: string
 	readonly localClineRulesFileInstructions?: string
@@ -103,7 +109,7 @@ export interface SystemPromptContext {
 	readonly localCursorRulesDirInstructions?: string
 	readonly localWindsurfRulesFileInstructions?: string
 	readonly localAgentsRulesFileInstructions?: string
-	readonly haiIgnoreInstructions?: string
+	readonly clineIgnoreInstructions?: string
 	readonly preferredLanguageInstructions?: string
 	readonly browserSettings?: BrowserSettings
 	readonly isTesting?: boolean
@@ -115,6 +121,8 @@ export interface SystemPromptContext {
 	readonly isSubagentsEnabledAndCliInstalled?: boolean
 	readonly isCliSubagent?: boolean
 	readonly enableNativeToolCalls?: boolean
+	readonly enableParallelToolCalling?: boolean
+	readonly terminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
 }
 
 /**

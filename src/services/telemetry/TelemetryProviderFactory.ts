@@ -1,15 +1,16 @@
 import { PostHog } from "posthog-node"
+import { ClineEndpoint } from "@/config"
 import { HaiConfig } from "@/shared/hai-config"
-import { getValidOpenTelemetryConfig } from "@/shared/services/config/otel-config"
-// PostHog default config is commented out - only used if custom config provided in .hai.config
-// import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
-import { Logger } from "../logging/Logger"
+import {
+	getValidOpenTelemetryConfig,
+	getValidRuntimeOpenTelemetryConfig,
+	OpenTelemetryClientValidConfig,
+} from "@/shared/services/config/otel-config"
+import { Logger } from "@/shared/services/Logger"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./providers/ITelemetryProvider"
 import { LangfuseProvider } from "./providers/LangfuseProvider"
 import { OpenTelemetryClientProvider } from "./providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "./providers/opentelemetry/OpenTelemetryTelemetryProvider"
-// PostHogClientProvider is commented out - we create custom clients from .hai.config
-// import { PostHogClientProvider } from "./providers/posthog/PostHogClientProvider"
 import { PostHogTelemetryProvider } from "./providers/posthog/PostHogTelemetryProvider"
 
 /**
@@ -22,7 +23,7 @@ export type TelemetryProviderType = "posthog" | "no-op" | "opentelemetry" | "lan
  */
 export type TelemetryProviderConfig =
 	| { type: "posthog"; apiKey?: string; host?: string }
-	| { type: "opentelemetry"; enabled?: boolean }
+	| { type: "opentelemetry"; config: OpenTelemetryClientValidConfig; bypassUserSettings: boolean }
 	| { type: "langfuse"; apiKey?: string; publicKey?: string; apiUrl?: string }
 	| { type: "no-op" }
 
@@ -53,7 +54,7 @@ export class TelemetryProviderFactory {
 			providers.push(new NoOpTelemetryProvider())
 		}
 
-		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.name()).join(", "))
+		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.name).join(", "))
 		return providers
 	}
 
@@ -84,10 +85,15 @@ export class TelemetryProviderFactory {
 				return new NoOpTelemetryProvider()
 			}
 			case "opentelemetry": {
-				const meterProvider = OpenTelemetryClientProvider.getMeterProvider()
-				const loggerProvider = OpenTelemetryClientProvider.getLoggerProvider()
-				if (meterProvider || loggerProvider) {
-					return await new OpenTelemetryTelemetryProvider().initialize()
+				const otelConfig = config.config
+				if (!otelConfig) {
+					return new NoOpTelemetryProvider()
+				}
+				const client = new OpenTelemetryClientProvider(otelConfig)
+				if (client.meterProvider || client.loggerProvider) {
+					return await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+						bypassUserSettings: config.bypassUserSettings,
+					}).initialize()
 				}
 				Logger.info("TelemetryProviderFactory: OpenTelemetry providers not available")
 				return new NoOpTelemetryProvider()
@@ -147,8 +153,23 @@ export class TelemetryProviderFactory {
 
 		// 3. OpenTelemetry provider (optional, from env vars)
 		const otelConfig = getValidOpenTelemetryConfig()
-		if (otelConfig) {
-			configs.push({ type: "opentelemetry", ...otelConfig })
+		if (!ClineEndpoint.isSelfHosted() && otelConfig) {
+			configs.push({
+				type: "opentelemetry",
+				config: otelConfig,
+				bypassUserSettings: false,
+			})
+		}
+
+		const runtimeOtelConfig = getValidRuntimeOpenTelemetryConfig()
+		if (runtimeOtelConfig) {
+			configs.push({
+				type: "opentelemetry",
+				config: runtimeOtelConfig,
+				// If the user has `CLINE_OTEL_TELEMETRY_ENABLED` in his environment, enable
+				// OTEL regardless of his Cline telemetry settings
+				bypassUserSettings: true,
+			})
 		}
 
 		return configs.length > 0 ? configs : [{ type: "no-op" }]
@@ -160,9 +181,7 @@ export class TelemetryProviderFactory {
  * or for testing purposes
  */
 export class NoOpTelemetryProvider implements ITelemetryProvider {
-	name(): string {
-		return "NoOpTelemetryProvider"
-	}
+	readonly name = "NoOpTelemetryProvider"
 	private isOptIn = true
 
 	log(_event: string, _properties?: TelemetryProperties): void {

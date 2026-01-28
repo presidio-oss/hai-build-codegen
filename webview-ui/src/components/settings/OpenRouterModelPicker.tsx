@@ -53,12 +53,17 @@ export const recommendedModels = [
 		label: "BEST",
 	},
 	{
+		id: "google/gemini-3-flash-preview",
+		description: "Intelligent model built for speed and price efficiency",
+		label: "NEW",
+	},
+	{
 		id: "anthropic/claude-opus-4.5",
 		description: "State-of-the-art for complex coding",
 		label: "HOT",
 	},
 	{
-		id: "openai/gpt-5.2",
+		id: "openai/gpt-5.2-codex",
 		description: "OpenAI's latest with strong coding abilities",
 		label: "NEW",
 	},
@@ -71,28 +76,13 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
-		id: "x-ai/grok-code-fast-1",
-		description: "Fast inference with strong coding performance",
-		label: "FREE",
-	},
-	{
-		id: "minimax/minimax-m2",
-		description: "Open source model with solid performance",
-		label: "FREE",
-	},
-	{
-		id: "zai/glm-4.6",
-		description: "Zhipu AI's latest agentic coding model in GLM series",
-		label: "FREE",
-	},
-	{
-		id: "kwaipilot/kat-coder-pro:free",
+		id: "kwaipilot/kat-coder-pro",
 		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
 		label: "FREE",
 	},
 	{
-		id: "mistralai/devstral-2512:free",
-		description: "Mistral's latest model with strong coding abilities",
+		id: "arcee-ai/trinity-large-preview:free",
+		description: "Arcee AI's advanced large preview model in the Trinity series",
 		label: "FREE",
 	},
 ]

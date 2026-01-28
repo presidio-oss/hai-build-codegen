@@ -1,8 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import BannerCarousel, { BannerData } from "@/components/common/BannerCarousel"
-import { CURRENT_CLI_BANNER_VERSION } from "@/components/common/CliInstallBanner"
-import { CURRENT_INFO_BANNER_VERSION } from "@/components/common/InfoBanner"
-import { CURRENT_MODEL_BANNER_VERSION } from "@/components/common/NewModelBanner"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
 import HomeHeader from "@/components/welcome/HomeHeader"
@@ -12,6 +9,11 @@ import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
+
+// Banner version constants (banners are currently disabled)
+const CURRENT_CLI_BANNER_VERSION = 0
+const CURRENT_INFO_BANNER_VERSION = 0
+const CURRENT_MODEL_BANNER_VERSION = 0
 
 /**
  * Welcome section shown when there's no active task

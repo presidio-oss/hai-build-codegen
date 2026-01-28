@@ -1,5 +1,7 @@
 import type { ApiHandler } from "@core/api"
 import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import type { CommandPermissionController } from "@core/permissions"
 import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type { BrowserSession } from "@services/browser/BrowserSession"
 import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
@@ -13,7 +15,6 @@ import type { Mode } from "@shared/storage/types"
 import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
-import type { HAIIgnoreController } from "@/core/ignore/HAIIgnoreController"
 import { WorkspaceRootManager } from "@/core/workspace"
 import type { ContextManager } from "../../../context/context-management/ContextManager"
 import type { StateManager } from "../../../storage/StateManager"
@@ -73,7 +74,8 @@ export interface TaskServices {
 	urlContentFetcher: UrlContentFetcher
 	diffViewProvider: DiffViewProvider
 	fileContextTracker: FileContextTracker
-	haiIgnoreController: HAIIgnoreController
+	clineIgnoreController: ClineIgnoreController
+	commandPermissionController: CommandPermissionController
 	contextManager: ContextManager
 	stateManager: StateManager
 }

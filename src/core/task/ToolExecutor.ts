@@ -1,5 +1,8 @@
 import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
+import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { CommandPermissionController } from "@core/permissions"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
@@ -9,7 +12,6 @@ import { ClineContent } from "@shared/messages/content"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
-import { HAIIgnoreController } from "@/core/ignore/HAIIgnoreController"
 import { isGPT5ModelFamily, modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
@@ -39,6 +41,7 @@ import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
 import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
+import { UseSkillToolHandler } from "./tools/handlers/UseSkillToolHandler"
 import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
 import { WebSearchToolHandler } from "./tools/handlers/WebSearchToolHandler"
 import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
@@ -76,7 +79,8 @@ export class ToolExecutor {
 		private diffViewProvider: DiffViewProvider,
 		private mcpHub: McpHub,
 		private fileContextTracker: FileContextTracker,
-		private haiIgnoreController: HAIIgnoreController,
+		private clineIgnoreController: ClineIgnoreController,
+		private commandPermissionController: CommandPermissionController,
 		private contextManager: ContextManager,
 		private stateManager: StateManager,
 
@@ -162,7 +166,8 @@ export class ToolExecutor {
 				urlContentFetcher: this.urlContentFetcher,
 				diffViewProvider: this.diffViewProvider,
 				fileContextTracker: this.fileContextTracker,
-				haiIgnoreController: this.haiIgnoreController,
+				clineIgnoreController: this.clineIgnoreController,
+				commandPermissionController: this.commandPermissionController,
 				contextManager: this.contextManager,
 				stateManager: this.stateManager,
 			},
@@ -200,7 +205,7 @@ export class ToolExecutor {
 	 * Register all tool handlers with the coordinator
 	 */
 	private registerToolHandlers(): void {
-		const validator = new ToolValidator(this.haiIgnoreController)
+		const validator = new ToolValidator(this.clineIgnoreController)
 
 		// Register all tool handlers
 		this.coordinator.register(new ListFilesToolHandler(validator))
@@ -222,6 +227,7 @@ export class ToolExecutor {
 		this.coordinator.register(new UseMcpToolHandler())
 		this.coordinator.register(new AccessMcpResourceHandler())
 		this.coordinator.register(new LoadMcpDocumentationHandler())
+		this.coordinator.register(new UseSkillToolHandler())
 		this.coordinator.register(new PlanModeRespondHandler())
 		this.coordinator.register(new ActModeRespondHandler())
 		this.coordinator.register(new NewTaskHandler())
@@ -262,7 +268,6 @@ export class ToolExecutor {
 	 * @param block The tool use block that caused the error
 	 */
 	private async handleError(action: string, error: Error, block: ToolUse): Promise<void> {
-		console.log(error)
 		const errorString = `Error ${action}: ${error.message}`
 		await this.say("error", errorString)
 
@@ -289,7 +294,6 @@ export class ToolExecutor {
 			block,
 			this.taskState.userMessageContent,
 			(block: ToolUse) => ToolDisplayUtils.getToolDescription(block),
-			this.api,
 			this.coordinator,
 			this.taskState.toolUseIdMap,
 		)
@@ -371,8 +375,12 @@ export class ToolExecutor {
 				this.isPlanModeToolRestricted(block.name)
 			) {
 				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
+				await this.removeLastPartialMessageIfExistsWithType("say", "error")
 				await this.say("error", errorMessage)
-				this.pushToolResult(formatResponse.toolError(errorMessage), block)
+				// Only push the final error message when the streaming is done.
+				if (!block.partial) {
+					this.pushToolResult(formatResponse.toolError(errorMessage), block)
+				}
 				return true
 			}
 
@@ -573,8 +581,7 @@ export class ToolExecutor {
 			return
 		}
 
-		// Check if hooks are enabled via user setting
-		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = getHooksEnabledSafe()
 
 		// Track if we need to cancel after hooks complete
 		let shouldCancelAfterHook = false
@@ -594,6 +601,9 @@ export class ToolExecutor {
 			toolResult = await this.coordinator.execute(config, block)
 			toolWasExecuted = true
 			this.pushToolResult(toolResult, block)
+
+			// Track the last executed tool for consecutive call detection (used by act_mode_respond)
+			this.taskState.lastToolName = block.name
 
 			// Check abort before running PostToolUse hook (success path)
 			if (this.taskState.abort) {

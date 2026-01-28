@@ -4,6 +4,7 @@ import { UpdateTaskStatusResponse } from "@shared/proto/cline/ui"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 import { sendHaiTaskDataUpdate } from "./subscribeToHaiTaskData"
 
@@ -23,7 +24,7 @@ async function readAllHaiStories(folderPath: string): Promise<IHaiStory[]> {
 		try {
 			await fs.access(prdPath)
 		} catch {
-			console.error(`PRD folder not found at: ${prdPath}`)
+			Logger.error(`PRD folder not found at: ${prdPath}`)
 			return []
 		}
 
@@ -56,7 +57,7 @@ async function readAllHaiStories(folderPath: string): Promise<IHaiStory[]> {
 
 		return haiTaskList
 	} catch (error) {
-		console.error("Error reading HAI task list:", error)
+		Logger.error("Error reading HAI task list:", error)
 		return []
 	}
 }

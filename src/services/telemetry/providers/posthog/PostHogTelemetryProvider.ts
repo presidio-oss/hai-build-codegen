@@ -1,8 +1,9 @@
 import { PostHog } from "posthog-node"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import { getGitUserInfo } from "@/utils/git"
 import { posthogConfig } from "../../../../shared/services/config/posthog-config"
 import type { ClineAccountUserInfo } from "../../../auth/AuthService"
@@ -15,6 +16,8 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	private client: PostHog
 	private telemetrySettings: TelemetrySettings
 	private isSharedClient: boolean
+
+	readonly name = "PostHogTelemetryProvider"
 
 	constructor(sharedClient?: PostHog) {
 		this.isSharedClient = !!sharedClient
@@ -60,9 +63,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		this.telemetrySettings.level = await this.getTelemetryLevel()
 		return this
 	}
-	name(): string {
-		return "PostHogTelemetryProvider"
-	}
+
 	public log(event: string, properties?: TelemetryProperties): void {
 		if (!this.isEnabled() || this.telemetrySettings.level === "off") {
 			return
@@ -224,7 +225,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 			try {
 				await this.client.shutdown()
 			} catch (error) {
-				console.error("Error shutting down PostHog client:", error)
+				Logger.error("Error shutting down PostHog client:", error)
 			}
 		}
 	}
@@ -237,8 +238,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		if (hostSettings.isEnabled === Setting.DISABLED) {
 			return "off"
 		}
-		const config = vscode.workspace.getConfiguration("telemetry")
-		return config?.get<TelemetrySettings["level"]>("telemetryLevel") || "all"
+		return getErrorLevelFromString(hostSettings.errorLevel)
 	}
 
 	// TAG:HAI

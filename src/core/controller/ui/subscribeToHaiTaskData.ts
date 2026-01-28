@@ -2,6 +2,7 @@ import type { IHaiStory, IHaiTask } from "@shared/hai-task"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { HaiStory, HaiTask, HaiTaskDataResponse } from "@shared/proto/cline/ui"
 import * as vscode from "vscode"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -53,7 +54,7 @@ export async function subscribeToHaiTaskData(
 		try {
 			await responseStream(response, false)
 		} catch (error) {
-			console.error("Error sending initial HAI task data:", error)
+			Logger.error("Error sending initial HAI task data:", error)
 		}
 	}
 
@@ -104,7 +105,7 @@ export async function sendHaiTaskDataUpdate(data: {
 				false, // Not the last message
 			)
 		} catch (error) {
-			console.error("Error sending HAI task data update:", error)
+			Logger.error("Error sending HAI task data update:", error)
 			// Remove the subscription if there was an error
 			workspaceSubscriptions.delete(responseStream)
 		}

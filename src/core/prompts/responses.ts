@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
 import { Mode } from "@/shared/storage/types"
-import { HAIIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/HAIIgnoreController"
+import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
 export const formatResponse = {
 	duplicateFileReadNotice: () =>
@@ -24,6 +24,9 @@ export const formatResponse = {
 
 	haiIgnoreError: (path: string) =>
 		`Access to ${path} is blocked by the .haiignore file settings. You must try to continue in the task without using this file, or ask the user to update the .haiignore file.`,
+
+	permissionDeniedError: (reason: string) =>
+		`Command execution blocked by CLINE_COMMAND_PERMISSIONS: ${reason}. You must try a different approach or ask the user to update the permission settings.`,
 
 	noToolsUsed: (usingNativeToolCalls: boolean) =>
 		usingNativeToolCalls
@@ -83,7 +86,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		absolutePath: string,
 		files: string[],
 		didHitLimit: boolean,
-		haiIgnoreController?: HAIIgnoreController,
+		clineIgnoreController?: ClineIgnoreController,
 	): string => {
 		const sorted = files
 			.map((file) => {
@@ -116,13 +119,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 				return aParts.length - bParts.length
 			})
 
-		const haiIgnoreParsed = haiIgnoreController
+		const haiIgnoreParsed = clineIgnoreController
 			? sorted.map((filePath) => {
 					// path is relative to absolute path, not cwd
 					// validateAccess expects either path relative to cwd or absolute path
 					// otherwise, for validating against ignore patterns like "assets/icons", we would end up with just "icons", which would result in the path not being ignored.
 					const absoluteFilePath = path.resolve(absolutePath, filePath)
-					const isIgnored = !haiIgnoreController.validateAccess(absoluteFilePath)
+					const isIgnored = !clineIgnoreController.validateAccess(absoluteFilePath)
 					if (isIgnored) {
 						return LOCK_TEXT_SYMBOL + " " + filePath
 					}
@@ -228,7 +231,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 	toolAlreadyUsed: (toolName: string) =>
 		`Tool [${toolName}] was not executed because a tool has already been used in this message. Only one tool may be used per message. You must assess the first tool's result before proceeding to use the next tool.`,
 
-	haiIgnoreInstructions: (content: string) =>
+	clineIgnoreInstructions: (content: string) =>
 		`# .haiignore\n\n(The following is provided by a root-level .haiignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${content}\n.haiignore`,
 
 	clineRulesGlobalDirectoryInstructions: (globalClineRulesFilePath: string, content: string) =>

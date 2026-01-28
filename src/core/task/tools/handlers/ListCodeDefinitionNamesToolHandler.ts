@@ -70,7 +70,7 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
 
 		// Execute the actual parse source code operation
-		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.haiIgnoreController)
+		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
 
 		// Handle approval flow
 		const sharedMessageProps = {

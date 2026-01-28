@@ -12,7 +12,9 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				"--disable-extensions", // Avoid conflicts with installed extensions
+				"--disable-extension",
+				"presidio-inc.hai-build-code-generator", // Avoid conflicts with installed Cline
+				"--disable-extension",
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -33,7 +35,9 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				"--disable-extensions", // Avoid conflicts with installed extensions
+				"--disable-extension",
+				"presidio-inc.hai-build-code-generator", // Avoid conflicts with installed Cline
+				"--disable-extension",
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -54,7 +58,9 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				"--disable-extensions", // Avoid conflicts with installed extensions
+				"--disable-extension",
+				"presidio-inc.hai-build-code-generator", // Avoid conflicts with installed Cline
+				"--disable-extension",
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -77,7 +83,9 @@
 				"--user-data-dir=${workspaceFolder}/dist/tmp/user",
 				"--profile-temp",
 				"--sync=off",
-				"--disable-extensions", // Avoid conflicts with installed extensions
+				"--disable-extension",
+				"presidio-inc.hai-build-code-generator", // Avoid conflicts with installed Cline
+				"--disable-extension",
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"${workspaceFolder}"
 			],

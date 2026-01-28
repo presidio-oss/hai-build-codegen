@@ -1,3 +1,5 @@
+import { BUILD_CONSTANTS } from "../../constants"
+
 export interface PostHogClientConfig {
 	/**
 	 * The main API key for PostHog telemetry service.

@@ -2,12 +2,12 @@ import fs from "fs/promises"
 import { after, beforeEach, describe, it } from "mocha"
 import os from "os"
 import path from "path"
-import { HAIIgnoreController } from "./HAIIgnoreController"
+import { ClineIgnoreController } from "./ClineIgnoreController"
 import "should"
 
-describe("HAIIgnoreController", () => {
+describe("ClineIgnoreController", () => {
 	let tempDir: string
-	let controller: HAIIgnoreController
+	let controller: ClineIgnoreController
 
 	beforeEach(async () => {
 		// Create a temp directory for testing
@@ -22,7 +22,7 @@ describe("HAIIgnoreController", () => {
 			),
 		)
 
-		controller = new HAIIgnoreController(tempDir)
+		controller = new ClineIgnoreController(tempDir)
 		await controller.initialize()
 	})
 
@@ -85,7 +85,7 @@ describe("HAIIgnoreController", () => {
 				["*.secret", "private/", "*.tmp", "data-*.json", "temp/*"].join("\n"),
 			)
 
-			controller = new HAIIgnoreController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			const results = [
@@ -103,7 +103,7 @@ describe("HAIIgnoreController", () => {
 
 		// it("should handle negation patterns", async () => {
 		// 	await fs.writeFile(
-		// 		path.join(tempDir, ".haiignore"),
+		// 		path.join(tempDir, ".clineignore"),
 		// 		[
 		// 			"temp/*", // Ignore everything in temp
 		// 			"!temp/allowed/*", // But allow files in temp/allowed
@@ -116,7 +116,7 @@ describe("HAIIgnoreController", () => {
 		// 		].join("\n"),
 		// 	)
 
-		// 	controller = new haiIgnoreController(tempDir)
+		// 	controller = new ClineIgnoreController(tempDir)
 
 		// 	const results = [
 		// 		// Basic negation
@@ -152,7 +152,7 @@ describe("HAIIgnoreController", () => {
 			// Create a new .haiignore with comments
 			await fs.writeFile(path.join(tempDir, ".haiignore"), ["# Comment line", "*.secret", "private/", "temp.*"].join("\n"))
 
-			controller = new HAIIgnoreController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			const result = controller.validateAccess("test.secret")
@@ -220,7 +220,7 @@ describe("HAIIgnoreController", () => {
 			await fs.mkdir(emptyDir)
 
 			try {
-				const controller = new HAIIgnoreController(emptyDir)
+				const controller = new ClineIgnoreController(emptyDir)
 				await controller.initialize()
 				const result = controller.validateAccess("file.txt")
 				result.should.be.true()
@@ -229,10 +229,10 @@ describe("HAIIgnoreController", () => {
 			}
 		})
 
-		it("should handle empty .HAIignore", async () => {
+		it("should handle empty .haiignore", async () => {
 			await fs.writeFile(path.join(tempDir, ".haiignore"), "")
 
-			controller = new HAIIgnoreController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			const result = controller.validateAccess("regular-file.txt")
@@ -249,7 +249,7 @@ describe("HAIIgnoreController", () => {
 			await fs.writeFile(path.join(tempDir, ".haiignore"), ["!include .gitignore", "secret.txt"].join("\n"))
 
 			// Initialize the controller to load the updated .haiignore
-			controller = new HAIIgnoreController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			// "server.log" should be ignored due to the "*.log" pattern from .gitignore
@@ -267,7 +267,7 @@ describe("HAIIgnoreController", () => {
 			await fs.writeFile(path.join(tempDir, ".haiignore"), ["!include missing-file.txt"].join("\n"))
 
 			// Initialize the controller
-			controller = new HAIIgnoreController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			// Validate access to a regular file; it should be allowed because the missing include should not break everything
@@ -278,7 +278,7 @@ describe("HAIIgnoreController", () => {
 			// Test with an include directive for a non-existent file alongside a valid pattern ("*.tmp")
 			await fs.writeFile(path.join(tempDir, ".haiignore"), ["!include non-existent.txt", "*.tmp"].join("\n"))
 
-			controller = new HAIIgnoreController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			// "file.tmp" should be ignored because of the "*.tmp" pattern

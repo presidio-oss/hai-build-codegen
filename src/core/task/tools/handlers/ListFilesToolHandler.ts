@@ -94,7 +94,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		// Execute the actual list files operation
 		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
 
-		const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit, config.services.haiIgnoreController)
+		const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit, config.services.clineIgnoreController)
 
 		// Handle approval flow
 		const sharedMessageProps = {

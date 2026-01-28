@@ -4,6 +4,7 @@ import type { HaiTasksLoadRequest } from "@shared/proto/cline/ui"
 import * as fs from "fs"
 import * as path from "path"
 import * as vscode from "vscode"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 import { sendHaiTaskDataUpdate } from "./subscribeToHaiTaskData"
 
@@ -55,7 +56,7 @@ export async function loadHaiTasks(controller: Controller, request: HaiTasksLoad
 
 		return Empty.create({})
 	} catch (error) {
-		console.error(`Failed to load HAI tasks: ${error}`)
+		Logger.error(`Failed to load HAI tasks: ${error}`)
 		throw error
 	}
 }
@@ -88,7 +89,7 @@ async function readHaiTaskList(folderPath: string): Promise<IHaiStory[]> {
 		const prdPath = path.join(folderPath, "PRD")
 
 		if (!fs.existsSync(prdPath)) {
-			console.error(`PRD folder not found at: ${prdPath}`)
+			Logger.error(`PRD folder not found at: ${prdPath}`)
 			return []
 		}
 
@@ -110,7 +111,7 @@ async function readHaiTaskList(folderPath: string): Promise<IHaiStory[]> {
 
 		return haiTaskList
 	} catch (error) {
-		console.error("Error reading HAI task list:", error)
+		Logger.error("Error reading HAI task list:", error)
 		return []
 	}
 }

@@ -2,13 +2,14 @@ import { listFiles } from "@services/glob/list-files"
 import { fileExistsAtPath } from "@utils/fs"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { HAIIgnoreController } from "@/core/ignore/HAIIgnoreController"
+import { ClineIgnoreController } from "@/core/ignore/ClineIgnoreController"
+import { Logger } from "@/shared/services/Logger"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(
 	dirPath: string,
-	haiIgnoreController?: HAIIgnoreController,
+	haiIgnoreController?: ClineIgnoreController,
 ): Promise<string> {
 	// check if the path exists
 	const dirExists = await fileExistsAtPath(path.resolve(dirPath))
@@ -111,7 +112,7 @@ This approach allows us to focus on the most relevant parts of the code (defined
 async function parseFile(
 	filePath: string,
 	languageParsers: LanguageParser,
-	haiIgnoreController?: HAIIgnoreController,
+	haiIgnoreController?: ClineIgnoreController,
 ): Promise<string | null> {
 	if (haiIgnoreController && !haiIgnoreController.validateAccess(filePath)) {
 		return null
@@ -173,7 +174,7 @@ async function parseFile(
 			lastLine = endLine
 		})
 	} catch (error) {
-		console.log(`Error parsing file: ${error}\n`)
+		Logger.log(`Error parsing file: ${error}\n`)
 	}
 
 	if (formattedOutput.length > 0) {

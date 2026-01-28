@@ -8,6 +8,7 @@ tmp
 
 .DS_Store
 .idea
+.husky/_/
 
 pnpm-lock.yaml
 
@@ -15,6 +16,7 @@ pnpm-lock.yaml
 .haiignore
 .venv
 .actrc
+CLAUDE.local.md
 
 webview-ui/src/**/*.js
 webview-ui/src/**/*.js.map
@@ -28,6 +30,10 @@ coverage-unit
 
 *evals.env
 .env
+.secrets
+.github/act/.secrets
+
+.worktrees
 
 ## Generated files ##
 src/generated/
@@ -36,3 +42,8 @@ webview-ui/src/services/grpc-client.ts
 
 # E2E Tests
 test-results
+
+/.github/act
+/pkg
+.secrets
+
