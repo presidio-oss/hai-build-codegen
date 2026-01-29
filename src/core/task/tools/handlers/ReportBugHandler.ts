@@ -68,8 +68,8 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 		// Show notification if enabled
 		if (config.autoApprovalSettings.enableNotifications) {
 			showSystemNotification({
-				subtitle: "Cline wants to create a github issue...",
-				message: `Cline is suggesting to create a github issue with the title: ${title}`,
+				subtitle: "HAI wants to create a github issue...",
+				message: `HAI is suggesting to create a github issue with the title: ${title}`,
 			})
 		}
 
@@ -129,7 +129,7 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 
 				// Use our utility function to create and open the GitHub issue URL
 				// This bypasses VS Code's URI handling issues with special characters
-				await createAndOpenGitHubIssue("cline", "cline", "bug_report.yml", params)
+				await createAndOpenGitHubIssue("presidio-oss", "hai-build-codegen", "bug_report.yml", params)
 			} catch (error) {
 				Logger.error(`An error occurred while attempting to report the bug: ${error}`)
 			}

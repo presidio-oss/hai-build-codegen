@@ -56,8 +56,8 @@ export class PostHogClientProvider {
 		// Check if any exception is from Cline
 		for (let i = 0; i < exceptionList.length; i++) {
 			const stacktrace = exceptionList[i].stacktrace
-			// Fast check: error message contains "cline"
-			if (stacktrace?.value?.toLowerCase().includes("cline")) {
+			// Fast check: error message contains "hai"
+			if (stacktrace?.value?.toLowerCase().includes("hai")) {
 				return event
 			}
 			// Check stack frames for Cline extension path

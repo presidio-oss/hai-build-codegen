@@ -429,8 +429,8 @@ export const ChatRowContent = memo(
 					const content = tool?.content || ""
 					const isApplyingPatch = content?.startsWith("%%bash") && !content.endsWith("*** End Patch\nEOF")
 					const editToolTitle = isApplyingPatch
-						? "Cline is creating patches to edit this file:"
-						: "Cline wants to edit this file:"
+						? "HAI is creating patches to edit this file:"
+						: "HAI wants to edit this file:"
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>

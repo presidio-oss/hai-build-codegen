@@ -37,7 +37,7 @@ class ClineTempManagerImpl {
 		// Windows: C:\Users\{user}\AppData\Local\Temp\cline
 		// Linux: /tmp/cline
 		const baseTempDir = os.tmpdir()
-		const clineTempDir = path.join(baseTempDir, "cline")
+		const clineTempDir = path.join(baseTempDir, "hai")
 
 		try {
 			fs.mkdirSync(clineTempDir, { recursive: true })
@@ -154,10 +154,10 @@ class ClineTempManagerImpl {
 			}
 
 			if (deletedCount > 0) {
-				Logger.info(`Cline temp cleanup: deleted ${deletedCount} files, freed ${Math.round(freedBytes / 1024 / 1024)}MB`)
+				Logger.info(`HAI temp cleanup: deleted ${deletedCount} files, freed ${Math.round(freedBytes / 1024 / 1024)}MB`)
 			}
 		} catch (error) {
-			Logger.error("Error during Cline temp cleanup", error)
+			Logger.error("Error during HAI temp cleanup", error)
 		}
 
 		return { deletedCount, freedBytes }
