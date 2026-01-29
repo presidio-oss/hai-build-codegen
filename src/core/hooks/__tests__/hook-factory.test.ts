@@ -89,7 +89,7 @@ describe("Hook System", () => {
 	describe("StdioHookRunner", () => {
 		it("should execute workspace hook from its respective workspace root directory", async () => {
 			// Create a test hook script that outputs the current working directory
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookPath = path.join(tempDir, ".hairules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 const input = require('fs').readFileSync(0, 'utf-8');
 // Output the current working directory

@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import sinon from "sinon"
+import { setDistinctId } from "@/services/logging/distinctId"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
 import { loadFixture } from "./test-utils"
@@ -28,6 +29,7 @@ describe("TaskStart Hook", () => {
 	}
 
 	beforeEach(async () => {
+		setDistinctId("test-id")
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
@@ -38,8 +40,20 @@ describe("TaskStart Hook", () => {
 
 		// Mock StateManager to return our temp directory
 		sandbox.stub(StateManager, "get").returns({
-			getGlobalStateKey: () => [{ path: tempDir }],
+			getGlobalStateKey: (key: string) => {
+				if (key === "workspaceRoots") {
+					return [{ path: tempDir }]
+				}
+				if (key === "primaryRootIndex") {
+					return 0
+				}
+				return undefined
+			},
 		} as any)
+
+		// Reset hook discovery cache for clean test state
+		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
+		HookDiscoveryCache.resetForTesting()
 
 		getEnv = () => ({ tempDir })
 	})
