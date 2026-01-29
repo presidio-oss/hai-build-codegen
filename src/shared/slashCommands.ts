@@ -38,7 +38,7 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{
 		name: "subagent",
-		description: "Invoke a Cline CLI subagent for focused research tasks",
+		description: "Invoke a HAI CLI subagent for focused research tasks",
 		section: "default",
 		cliCompatible: true,
 	},

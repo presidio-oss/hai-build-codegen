@@ -102,10 +102,7 @@ export class WebSearchToolHandler implements IFullyManagedTool {
 				)
 			} else {
 				// Manual approval flow
-				showNotificationForApproval(
-					`Cline wants to search for: ${query}`,
-					config.autoApprovalSettings.enableNotifications,
-				)
+				showNotificationForApproval(`HAI wants to search for: ${query}`, config.autoApprovalSettings.enableNotifications)
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
 				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
