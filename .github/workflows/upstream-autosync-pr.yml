@@ -61,15 +61,18 @@ jobs:
             echo "Merge conflict detected. Resolving..."
 
             # For .github/workflows conflicts, accept deletions (we remove them anyway)
-            git diff --name-only --diff-filter=U | grep "^\.github/workflows/" | while read file; do
+            WORKFLOW_CONFLICTS=$(git diff --name-only --diff-filter=U | grep "^\.github/workflows/" || true)
+            for file in $WORKFLOW_CONFLICTS; do
               echo "Resolving workflow conflict for: $file"
-              git rm -f "$file" 2>/dev/null || git checkout --ours "$file" 2>/dev/null || true
+              git rm -f "$file" 2>/dev/null || { git checkout --ours "$file" && git add "$file"; } || true
             done
 
             # For any other conflicts, prefer upstream changes
-            git diff --name-only --diff-filter=U | grep -v "^\.github/workflows/" | while read file; do
+            CONFLICTED_FILES=$(git diff --name-only --diff-filter=U | grep -v "^\.github/workflows/" || true)
+            for file in $CONFLICTED_FILES; do
               echo "Accepting upstream version for: $file"
-              git checkout --theirs "$file" 2>/dev/null || git add "$file" 2>/dev/null || true
+              git checkout --theirs "$file"
+              git add "$file"
             done
 
             # Check if there are still unresolved conflicts
