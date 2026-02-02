@@ -24,7 +24,6 @@ gh pr list --search "Changeset version bump" --state open --json number,title,he
 
 If no PR is found, inform the user there's no changeset PR ready. They may need to:
 - Merge PRs with changesets to main first
-- Manually trigger the Changeset Converter workflow at: https://github.com/cline/cline/actions/workflows/changeset-converter.yml
 
 ## Step 2: Gather PR Information
 
@@ -151,7 +150,7 @@ echo -n "v{VERSION}" | pbcopy
 ```
 
 **Tell the user to trigger the publish workflow:**
-1. Go to: https://github.com/cline/cline/actions/workflows/publish.yml
+1. Go to: https://github.com/presidio-oss/hai-build-codegen/actions/workflows/publish.yml
 2. Select **"release"** for release-type
 3. Paste **`v{VERSION}`** as the tag (already in clipboard)
 
@@ -205,7 +204,7 @@ echo "VS Code v{VERSION} Released
 - Version released: v{VERSION}
 - PR merged: #{PR_NUMBER}
 - Tag pushed: v{VERSION}
-- Release: https://github.com/cline/cline/releases/tag/v{VERSION}
+- Release: https://github.com/presidio-oss/hai-build-codegen/releases/tag/v{VERSION}
 - Slack message copied to clipboard
 
 **Final reminder:**

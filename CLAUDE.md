@@ -1,2 +1,2 @@
-@.clinerules/general.md
-@.clinerules/network.md
+@.hairules/general.md
+@.hairules/network.md
