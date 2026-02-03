@@ -71,8 +71,13 @@ jobs:
             CONFLICTED_FILES=$(git diff --name-only --diff-filter=U | grep -v "^\.github/workflows/" || true)
             for file in $CONFLICTED_FILES; do
               echo "Accepting upstream version for: $file"
-              git checkout --theirs "$file"
-              git add "$file"
+              # Try to checkout upstream version; if it fails (file deleted in upstream), delete it
+              if ! git checkout --theirs "$file" 2>/dev/null; then
+                echo "  -> File deleted in upstream, removing"
+                git rm -f "$file"
+              else
+                git add "$file"
+              fi
             done
 
             # Check if there are still unresolved conflicts
