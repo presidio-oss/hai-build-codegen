@@ -60,14 +60,11 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showAccount: boolean
 	showWorktrees: boolean
 	showAnnouncement: boolean
-	showChatModelSelector: boolean
 	expandTaskHeader: boolean
-	showHaiTaskList: boolean
 
 	// Setters
 	setDictationSettings: (value: DictationSettings) => void
 	setShowAnnouncement: (value: boolean) => void
-	setShowChatModelSelector: (value: boolean) => void
 	setShouldShowAnnouncement: (value: boolean) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
@@ -110,7 +107,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	navigateToAccount: () => void
 	navigateToWorktrees: () => void
 	navigateToChat: () => void
-	navigateToHaiTaskList: () => void
 
 	// Hide functions
 	hideSettings: () => void
@@ -118,9 +114,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	hideAccount: () => void
 	hideWorktrees: () => void
 	hideAnnouncement: () => void
-	hideChatModelSelector: () => void
-	// hideExperts: () => void
-	hideHaiTaskList: () => void
 	closeMcpView: () => void
 
 	// Event callbacks
@@ -142,9 +135,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showAccount, setShowAccount] = useState(false)
 	const [showWorktrees, setShowWorktrees] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
-	const [showChatModelSelector, setShowChatModelSelector] = useState(false)
-	// const [showExperts, setShowExperts] = useState(false)
-	const [showHaiTaskList, setShowHaiTaskList] = useState(false)
 
 	// Helper for MCP view
 	const closeMcpView = useCallback(() => {
@@ -162,9 +152,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
 	const hideWorktrees = useCallback(() => setShowWorktrees(false), [setShowWorktrees])
 	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
-	const hideChatModelSelector = useCallback(() => setShowChatModelSelector(false), [setShowChatModelSelector])
-	// const hideExperts = useCallback(() => setShowExperts(false), [setShowExperts])
-	const hideHaiTaskList = useCallback(() => setShowHaiTaskList(false), [setShowHaiTaskList])
 
 	// Navigation functions
 	const navigateToMcp = useCallback(
@@ -173,13 +160,12 @@ export const ExtensionStateContextProvider: React.FC<{
 			setShowHistory(false)
 			setShowAccount(false)
 			setShowWorktrees(false)
-			setShowHaiTaskList(false)
 			if (tab) {
 				setMcpTab(tab)
 			}
 			setShowMcp(true)
 		},
-		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount, setShowWorktrees, setShowHaiTaskList],
+		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount, setShowWorktrees],
 	)
 
 	const navigateToSettings = useCallback(
@@ -188,7 +174,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
-			setShowHaiTaskList(false)
 			setSettingsTargetSection(targetSection)
 			setSettingsInitialModelTab(undefined)
 			setShowSettings(true)
@@ -206,7 +191,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			setSettingsInitialModelTab(opts.initialModelTab)
 			setShowSettings(true)
 		},
-		[closeMcpView, setShowHaiTaskList],
+		[closeMcpView],
 	)
 
 	const navigateToHistory = useCallback(() => {
@@ -215,8 +200,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowAccount(false)
 		setShowWorktrees(false)
 		setShowHistory(true)
-		setShowHaiTaskList(false)
-	}, [setShowSettings, closeMcpView, setShowAccount, setShowWorktrees, setShowHistory, setShowHaiTaskList])
+	}, [setShowSettings, closeMcpView, setShowAccount, setShowWorktrees, setShowHistory])
 
 	const navigateToAccount = useCallback(() => {
 		setShowSettings(false)
@@ -227,18 +211,12 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [setShowSettings, closeMcpView, setShowHistory, setShowWorktrees, setShowAccount])
 
 	const navigateToWorktrees = useCallback(() => {
-		setShowHaiTaskList(false)
-		setShowAccount(true)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowHaiTaskList])
-
-	const navigateToHaiTaskList = useCallback(() => {
 		setShowSettings(false)
 		closeMcpView()
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowWorktrees(true)
-		setShowHaiTaskList(true)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees, setShowHaiTaskList])
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
 
 	const navigateToChat = useCallback(() => {
 		setShowSettings(false)
@@ -246,8 +224,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowWorktrees(false)
-		setShowHaiTaskList(false)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees, setShowHaiTaskList])
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -259,7 +236,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		dictationSettings: DEFAULT_DICTATION_SETTINGS,
 		focusChainSettings: DEFAULT_FOCUS_CHAIN_SETTINGS,
 		preferredLanguage: "English",
-		openaiReasoningEffort: "medium",
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
 		environment: Environment.production,
@@ -360,7 +336,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
-	const haiBuildTaskListClickedSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Add ref for callbacks
 	const relinquishControlCallbacks = useRef<Set<() => void>>(new Set())
@@ -429,61 +404,56 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Note: Navigation button subscriptions moved to App.tsx to allow clearing
-		// of detailed view state (detailedTask/detailedStory) before navigation.
-		// This includes: MCP, History, Account, and HAI Task List buttons.
-
 		// Subscribe to MCP button clicked events with webview type
-		// mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
-		// 	{},
-		// 	{
-		// 		onResponse: () => {
-		// 			console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
-		// 			navigateToMcp()
-		// 		},
-		// 		onError: (error) => {
-		// 			console.error("Error in mcpButtonClicked subscription:", error)
-		// 		},
-		// 		onComplete: () => {
-		// 			console.log("mcpButtonClicked subscription completed")
-		// 		},
-		// 	},
-		// )
+		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
+			{},
+			{
+				onResponse: () => {
+					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
+					navigateToMcp()
+				},
+				onError: (error) => {
+					console.error("Error in mcpButtonClicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("mcpButtonClicked subscription completed")
+				},
+			},
+		)
 
 		// Set up history button clicked subscription with webview type
-		// historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(
-		// 	{},
-		// 	{
-		// 		onResponse: () => {
-		// 			// When history button is clicked, navigate to history view
-		// 			console.log("[DEBUG] Received history button clicked event from gRPC stream")
-		// 			navigateToHistory()
-		// 		},
-		// 		onError: (error) => {
-		// 			console.error("Error in history button clicked subscription:", error)
-		// 		},
-		// 		onComplete: () => {
-		// 			console.log("History button clicked subscription completed")
-		// 		},
-		// 	},
-		// )
+		historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(
+			{},
+			{
+				onResponse: () => {
+					// When history button is clicked, navigate to history view
+					console.log("[DEBUG] Received history button clicked event from gRPC stream")
+					navigateToHistory()
+				},
+				onError: (error) => {
+					console.error("Error in history button clicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("History button clicked subscription completed")
+				},
+			},
+		)
 
 		// Subscribe to chat button clicked events with webview type
-		// (Moved to App.tsx to clear detailed state)
-		// chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(
-		// 	{},
-		// 	{
-		// 		onResponse: () => {
-		// 			// When chat button is clicked, navigate to chat
-		// 			console.log("[DEBUG] Received chat button clicked event from gRPC stream")
-		// 			navigateToChat()
-		// 		},
-		// 		onError: (error) => {
-		// 			console.error("Error in chat button subscription:", error)
-		// 		},
-		// 		onComplete: () => {},
-		// 	},
-		// )
+		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(
+			{},
+			{
+				onResponse: () => {
+					// When chat button is clicked, navigate to chat
+					console.log("[DEBUG] Received chat button clicked event from gRPC stream")
+					navigateToChat()
+				},
+				onError: (error) => {
+					console.error("Error in chat button subscription:", error)
+				},
+				onComplete: () => {},
+			},
+		)
 
 		// Subscribe to MCP servers updates
 		mcpServersSubscriptionRef.current = McpServiceClient.subscribeToMcpServers(EmptyRequest.create(), {
@@ -502,18 +472,18 @@ export const ExtensionStateContextProvider: React.FC<{
 		})
 
 		// Set up settings button clicked subscription
-		// settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(EmptyRequest.create({}), {
-		// 	onResponse: () => {
-		// 		// When settings button is clicked, navigate to settings
-		// 		navigateToSettings()
-		// 	},
-		// 	onError: (error) => {
-		// 		console.error("Error in settings button clicked subscription:", error)
-		// 	},
-		// 	onComplete: () => {
-		// 		console.log("Settings button clicked subscription completed")
-		// 	},
-		// })
+		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(EmptyRequest.create({}), {
+			onResponse: () => {
+				// When settings button is clicked, navigate to settings
+				navigateToSettings()
+			},
+			onError: (error) => {
+				console.error("Error in settings button clicked subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Settings button clicked subscription completed")
+			},
+		})
 
 		// Set up worktrees button clicked subscription
 		worktreesButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToWorktreesButtonClicked(
@@ -620,42 +590,19 @@ export const ExtensionStateContextProvider: React.FC<{
 			})
 
 		// Set up account button clicked subscription
-		// accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
-		// 	onResponse: () => {
-		// 		// When account button is clicked, navigate to account view
-		// 		console.log("[DEBUG] Received account button clicked event from gRPC stream")
-		// 		navigateToAccount()
-		// 	},
-		// 	onError: (error) => {
-		// 		console.error("Error in account button clicked subscription:", error)
-		// 	},
-		// 	onComplete: () => {
-		// 		console.log("Account button clicked subscription completed")
-		// 	},
-		// })
-
-		// Note: HAI Build Task List button clicked subscription is now handled in App.tsx
-		// to allow clearing of detailed view state (detailedTask/detailedStory)
-		// which are local to App.tsx and not available in this context.
-		// The subscription was moved to App.tsx to properly clear state before navigation.
-
-		// Set up HAI Build Task List button clicked subscription
-		// haiBuildTaskListClickedSubscriptionRef.current = UiServiceClient.subscribeToHaiBuildTaskListClicked(
-		// 	EmptyRequest.create(),
-		// 	{
-		// 		onResponse: () => {
-		// 			// When HAI Build Task List button is clicked, navigate to task list view
-		// 			console.log("[DEBUG] Received HAI Build Task List button clicked event from gRPC stream")
-		// 			navigateToHaiTaskList()
-		// 		},
-		// 		onError: (error) => {
-		// 			console.error("Error in HAI Build Task List button clicked subscription:", error)
-		// 		},
-		// 		onComplete: () => {
-		// 			console.log("HAI Build Task List button clicked subscription completed")
-		// 		},
-		// 	},
-		// )
+		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
+			onResponse: () => {
+				// When account button is clicked, navigate to account view
+				console.log("[DEBUG] Received account button clicked event from gRPC stream")
+				navigateToAccount()
+			},
+			onError: (error) => {
+				console.error("Error in account button clicked subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Account button clicked subscription completed")
+			},
+		})
 
 		// Fetch available terminal profiles on launch
 		StateServiceClient.getAvailableTerminalProfiles(EmptyRequest.create({}))
@@ -739,7 +686,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpServersSubscriptionRef.current = null
 			}
 		}
-	}, [navigateToHaiTaskList])
+	}, [])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
@@ -843,8 +790,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		showAccount,
 		showWorktrees,
 		showAnnouncement,
-		showChatModelSelector,
-		showHaiTaskList,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
@@ -865,7 +810,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		navigateToAccount,
 		navigateToWorktrees,
 		navigateToChat,
-		navigateToHaiTaskList,
 
 		// Hide functions
 		hideSettings,
@@ -874,12 +818,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideWorktrees,
 		hideAnnouncement,
 		setShowAnnouncement,
-		hideChatModelSelector,
-		// hideExperts,
-		hideHaiTaskList,
 		setShowWelcome,
 		setOnboardingModels,
-		setShowChatModelSelector,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
