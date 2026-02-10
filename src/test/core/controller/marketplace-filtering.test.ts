@@ -7,7 +7,6 @@ import axios from "axios"
 import * as sinon from "sinon"
 import { ClineEndpoint, ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
-import * as localMcpRegistry from "@/utils/local-mcp-registry"
 
 /**
  * Unit tests for Controller MCP marketplace filtering with remote config
@@ -19,13 +18,12 @@ describe("Controller Marketplace Filtering", () => {
 	let stateManagerStub: sinon.SinonStub
 	let mockStateManager: any
 	let axiosGetStub: sinon.SinonStub
-	let getAllLocalMcpsStub: sinon.SinonStub
-	let hostProviderInitialized: boolean = false
+	let hostProviderInitialized = false
 
 	// Initialize ClineEndpoint before tests run (required for ClineEnv.config() to work)
 	before(async () => {
 		if (!ClineEndpoint.isInitialized()) {
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize("/test/extension")
 		}
 	})
 
@@ -103,7 +101,7 @@ describe("Controller Marketplace Filtering", () => {
 				() => null as any, // createTerminalManager
 				mockHostBridge,
 				() => {}, // logToChannel
-				async () => "http://localhost", // getCallbackUrl
+				async (path: string) => `http://localhost${path}`, // getCallbackUrl
 				async () => "", // getBinaryLocation
 				"/test/extension", // extensionFsPath
 				"/test/storage", // globalStorageFsPath
@@ -153,9 +151,6 @@ describe("Controller Marketplace Filtering", () => {
 			data: mockMarketplaceData,
 		})
 
-		// Mock local MCP registry to return empty (no local MCPs in tests)
-		getAllLocalMcpsStub = sinon.stub(localMcpRegistry, "getAllLocalMcps").returns({})
-
 		// Create controller instance
 		controller = new Controller(mockContext)
 	})
@@ -163,7 +158,6 @@ describe("Controller Marketplace Filtering", () => {
 	afterEach(() => {
 		stateManagerStub.restore()
 		axiosGetStub.restore()
-		getAllLocalMcpsStub.restore()
 
 		// Reset HostProvider if we initialized it
 		if (hostProviderInitialized) {

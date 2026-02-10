@@ -34,6 +34,9 @@ service StateService {
   rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
   rpc flushPendingState(EmptyRequest) returns (Empty);
+  rpc refreshRemoteConfig(EmptyRequest) returns (Empty);
+  rpc testOtelConnection(EmptyRequest) returns (TestConnectionResult);
+  rpc testPromptUploading(EmptyRequest) returns (TestConnectionResult);
 }
 
 message AutoApprovalActions {
@@ -324,7 +327,7 @@ enum OpenaiReasoningEffort {
   LOW = 0;
   MEDIUM = 1;
   HIGH = 2;
-  MINIMAL = 3;
+  reserved 3; // was MINIMAL
 }
 
 enum McpDisplayMode {
@@ -473,4 +476,11 @@ message OnboardingModel {
 message TrackBannerEventRequest {
   string banner_id = 1;
   string event_type = 2;
+}
+
+// Result of a connection test (OTEL, prompt uploading, etc.)
+message TestConnectionResult {
+  bool success = 1;
+  optional string message = 2;
+  optional string error = 3;
 }

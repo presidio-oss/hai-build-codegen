@@ -1,6 +1,8 @@
 import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
 import { AnthropicModelId, anthropicModels } from "@/shared/api"
 
+export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"
+
 const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
 
 export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
@@ -8,6 +10,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	return [
 		"cline",
 		"anthropic",
+		"bedrock",
 		"gemini",
 		"vertex",
 		"openrouter",
@@ -140,14 +143,6 @@ export function isTrinityModelFamily(id: string): boolean {
 export function isGemini3ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
-}
-
-export function supportsReasoningEffortForModel(modelId?: string): boolean {
-	if (!modelId) {
-		return false
-	}
-	const id = normalize(modelId)
-	return id.includes("gemini") || id.includes("gpt") || id.startsWith("openai/o") || id.includes("grok")
 }
 
 function isDeepSeek32ModelFamily(id: string): boolean {
