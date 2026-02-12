@@ -68,7 +68,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		}
 
 		// Check clineignore access
-		const accessValidation = this.validator.checkClineIgnorePath(relPath!)
+		const accessValidation = this.validator.checkHAIIgnorePath(relPath!)
 		if (!accessValidation.ok) {
 			if (!config.isSubagentExecution) {
 				await config.callbacks.say("clineignore_error", relPath)

@@ -160,8 +160,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update subagents setting
 		if (request.subagentsEnabled !== undefined) {
-			const wasEnabled = controller.stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
 			const isEnabled = !!request.subagentsEnabled
+			// Validate platform for subagents
+			if (isEnabled && process.platform === "win32") {
+				throw new Error("CLI subagents are only supported on macOS and Linux platforms")
+			}
+			const wasEnabled = controller.stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
 			controller.stateManager.setGlobalState("subagentsEnabled", isEnabled)
 
 			// Capture telemetry when setting changes

@@ -88,7 +88,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		}
 
 		// Check clineignore access
-		const accessValidation = this.validator.checkClineIgnorePath(relDirPath!)
+		const accessValidation = this.validator.checkHAIIgnorePath(relDirPath!)
 		if (!accessValidation.ok) {
 			if (!config.isSubagentExecution) {
 				await config.callbacks.say("clineignore_error", relDirPath)
