@@ -37,6 +37,8 @@ export type TelemetryProperties = TelemetryObject
 export interface TelemetrySettings {
 	/** Whether the host environment's telemetry is enabled */
 	hostEnabled: boolean
+	/** Whether the extension-level telemetry is enabled */
+	extensionEnabled?: boolean
 	/** The level of telemetry to collect */
 	level?: "all" | "off" | "error" | "crash"
 }

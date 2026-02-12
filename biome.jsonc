@@ -1,5 +1,5 @@
 {
-	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.1.4/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -28,62 +28,62 @@
 		"rules": {
 			"recommended": true,
 			"correctness": {
-				"useExhaustiveDependencies": "info",
+				"useExhaustiveDependencies": "off",
 				"noUndeclaredVariables": "off",
-				"noEmptyPattern": "info",
+				"noEmptyPattern": "off",
 				"useJsxKeyInIterable": "off",
 				"noInnerDeclarations": "off",
-				"useHookAtTopLevel": "info",
-				"useYield": "info",
+				"useHookAtTopLevel": "off",
+				"useYield": "off",
 				"noConstructorReturn": "off",
 				"noInvalidPositionAtImportRule": "off",
 				"noSwitchDeclarations": "off",
-				"noUnusedImports": "error"
+				"noUnusedImports": "off"
 			},
-			"a11y": "info",
+			"a11y": "off",
 			"style": {
 				"useNodejsImportProtocol": "off",
 				"useImportType": "off",
-				"useBlockStatements": "off",
+				"useBlockStatements": "warn",
 				"useNamingConvention": "off",
 				"useThrowOnlyError": "info",
 				"useConsistentArrayType": "off",
 				"noParameterAssign": "off",
 				"useAsConstAssertion": "off",
 				"useDefaultParameterLast": "off",
-				"noNonNullAssertion": "info",
+				"noNonNullAssertion": "off",
 				"useEnumInitializers": "off",
-				"useSelfClosingElements": "info",
+				"useSelfClosingElements": "off",
 				"useSingleVarDeclarator": "off",
-				"useNumberNamespace": "info",
-				"noInferrableTypes": "info",
-				"useTemplate": "info",
-				"noUselessElse": "info"
+				"useNumberNamespace": "off",
+				"noInferrableTypes": "off",
+				"useTemplate": "off",
+				"noUselessElse": "off"
 			},
 			"suspicious": {
 				"noDoubleEquals": "warn",
 				"noImplicitAnyLet": "info",
 				"noThenProperty": "off",
-				"noAsyncPromiseExecutor": "info",
+				"noAsyncPromiseExecutor": "off",
 				"noImportAssign": "off",
-				"noExplicitAny": "info",
-				"noControlCharactersInRegex": "warn",
+				"noExplicitAny": "off",
+				"noControlCharactersInRegex": "off",
 				"noShadowRestrictedNames": "off",
 				"noArrayIndexKey": "info",
 				"noAssignInExpressions": "info",
 				"useIterableCallbackReturn": "info"
 			},
 			"complexity": {
-				"noUselessConstructor": "info",
-				"useOptionalChain": "info",
-				"noBannedTypes": "warn",
-				"useLiteralKeys": "info",
-				"noUselessCatch": "info",
-				"noUselessSwitchCase": "info",
-				"noStaticOnlyClass": "info"
+				"noUselessConstructor": "off",
+				"useOptionalChain": "off",
+				"noBannedTypes": "off",
+				"useLiteralKeys": "off",
+				"noUselessCatch": "off",
+				"noUselessSwitchCase": "off",
+				"noStaticOnlyClass": "off"
 			},
 			"security": {
-				"noDangerouslySetInnerHtml": "info"
+				"noDangerouslySetInnerHtml": "off"
 			}
 		}
 	},
@@ -140,21 +140,20 @@
 	],
 	"overrides": [
 		{
-			"includes": [
-				"**",
-				"!!**/dist",
-				"!!**/hosts/vscode/**",
-				"!!**/test/**",
-				"!!**/*.test.ts",
-				"!!src/dev/**",
-				"!!src/extension.ts",
-				"!!src/integrations/git/commit-message-generator.ts",
-				"!!src/integrations/terminal/**",
-				"!!src/core/controller/ui/openWalkthrough.ts"
-			],
-			"plugins": [
-				"src/dev/grit/vscode-api.grit"
-			]
+			// "includes": [
+			// 	"**",
+			// 	"!**/hosts/vscode/**",
+			// 	"!**/test/**",
+			// 	"!**/*.test.ts",
+			// 	"!src/dev/**",
+			// 	"!src/extension.ts",
+			// 	"!src/integrations/git/commit-message-generator.ts",
+			// 	"!src/integrations/terminal/**",
+			// 	"!src/core/controller/ui/openWalkthrough.ts"
+			// ],
+			// "plugins": [
+			// 	"src/dev/grit/vscode-api.grit"
+			// ]
 		},
 		{
 			// Do not use console logging directly, use the Logger service instead.

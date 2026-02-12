@@ -118,6 +118,22 @@ export class Controller {
 		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 3600000) // 1 hour
 	}
 
+	/**
+	 * Trigger a refresh of telemetry configuration when workspace config changes.
+	 * Minimal implementation: re-evaluates current opt-in state and notifies telemetry service.
+	 */
+	public async updateTelemetryConfig(): Promise<void> {
+		try {
+			const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
+			const isOptedIn = telemetrySetting !== "disabled"
+			void telemetryService
+				.updateTelemetryState(isOptedIn)
+				.catch((err) => Logger.error("[Controller] Failed to update telemetry state:", err))
+		} catch (err) {
+			Logger.error("[Controller] updateTelemetryConfig error:", err)
+		}
+	}
+
 	constructor(readonly context: vscode.ExtensionContext) {
 		Session.reset() // Reset session on controller initialization
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered

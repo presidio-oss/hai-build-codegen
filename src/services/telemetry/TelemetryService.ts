@@ -1796,11 +1796,11 @@ export class TelemetryService {
 		})
 
 		const isMultiRoot = rootCount > 1
-		this.recordGauge("cline.workspace.active_roots", rootCount, {
+		this.recordGauge("hai.workspace.active_roots", rootCount, {
 			is_multi_root: isMultiRoot,
 		})
 		// Retire the previous series to avoid leaking gauge entries when the flag flips.
-		this.recordGauge("cline.workspace.active_roots", null, {
+		this.recordGauge("hai.workspace.active_roots", null, {
 			is_multi_root: !isMultiRoot,
 		})
 	}

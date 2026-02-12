@@ -10,7 +10,7 @@
 
 ### Fixed
 
-- UI fixes and enhancements.
+- UI fixes and enhancements..
 
 ## [3.13.1]
 
