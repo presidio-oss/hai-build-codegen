@@ -67,6 +67,9 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const command = block.params.command
+		if (uiHelpers.getConfig().isSubagentExecution) {
+			return
+		}
 
 		// Check if this should be auto-approved to determine UI flow
 		const shouldAutoApprove = uiHelpers.shouldAutoApproveTool(this.name)
@@ -168,15 +171,19 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 					`Command "${actualCommand}" was denied by CLINE_COMMAND_PERMISSIONS. ` +
 					`Reason: ${permissionResult.reason}${matchedPattern}`
 			}
-			await config.callbacks.say("command_permission_denied", errorMessage)
+			if (!config.isSubagentExecution) {
+				await config.callbacks.say("command_permission_denied", errorMessage)
+			}
 			return formatResponse.toolError(formatResponse.permissionDeniedError(errorMessage))
 		}
 
 		// Check clineignore validation for command
 		const ignoredFileAttemptedToAccess = config.services.clineIgnoreController.validateCommand(actualCommand)
 		if (ignoredFileAttemptedToAccess) {
-			await config.callbacks.say("clineignore_error", ignoredFileAttemptedToAccess)
-			return formatResponse.toolError(formatResponse.haiIgnoreError(ignoredFileAttemptedToAccess))
+			if (!config.isSubagentExecution) {
+				await config.callbacks.say("clineignore_error", ignoredFileAttemptedToAccess)
+			}
+			return formatResponse.toolError(formatResponse.clineIgnoreError(ignoredFileAttemptedToAccess))
 		}
 
 		let didAutoApprove = false
@@ -199,21 +206,27 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		// Capture workspace path resolution telemetry
 		if (config.isMultiRootEnabled && config.workspaceManager) {
-			// telemetryService.captureWorkspacePathResolved(
-			// 	config.ulid,
-			// 	"ExecuteCommandToolHandler",
-			// 	workspaceHintUsed ? "hint_provided" : "fallback_to_primary",
-			// 	workspaceHintUsed ? "workspace_name" : undefined,
-			// 	resolvedToNonPrimary, // resolution success = resolved to different workspace
-			// 	undefined, // TODO: could calculate workspace index if needed
-			// 	true,
-			// )
+			telemetryService.captureWorkspacePathResolved(
+				config.ulid,
+				"ExecuteCommandToolHandler",
+				workspaceHintUsed ? "hint_provided" : "fallback_to_primary",
+				workspaceHintUsed ? "workspace_name" : undefined,
+				resolvedToNonPrimary, // resolution success = resolved to different workspace
+				undefined, // TODO: could calculate workspace index if needed
+				true,
+			)
 		}
 
-		if ((!requiresApprovalPerLLM && autoApproveSafe) || (requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)) {
+		if (
+			config.isSubagentExecution ||
+			(!requiresApprovalPerLLM && autoApproveSafe) ||
+			(requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)
+		) {
 			// Auto-approve flow
-			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
-			await config.callbacks.say("command", actualCommand, undefined, undefined, false)
+			if (!config.isSubagentExecution) {
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
+				await config.callbacks.say("command", actualCommand, undefined, undefined, false)
+			}
 			didAutoApprove = true
 			telemetryService.captureToolUsage(
 				config.ulid,
@@ -228,7 +241,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		} else {
 			// Manual approval flow
 			showNotificationForApproval(
-				`HAI wants to execute a command: ${actualCommand}`,
+				`Cline wants to execute a command: ${actualCommand}`,
 				config.autoApprovalSettings.enableNotifications,
 			)
 
@@ -276,7 +289,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		// Setup timeout notification for long-running auto-approved commands
 		let timeoutId: NodeJS.Timeout | undefined
-		if (didAutoApprove && config.autoApprovalSettings.enableNotifications) {
+		if (didAutoApprove && config.autoApprovalSettings.enableNotifications && !config.isSubagentExecution) {
 			// if the command was auto-approved, and it's long running we need to notify the user after some time has passed without proceeding
 			timeoutId = setTimeout(() => {
 				showSystemNotification({
