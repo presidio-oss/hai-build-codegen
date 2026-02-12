@@ -28,6 +28,9 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		const relPath = block.params.path
 
 		const config = uiHelpers.getConfig()
+		if (config.isSubagentExecution) {
+			return
+		}
 
 		// Create and show partial UI message
 		const sharedMessageProps = {
@@ -64,11 +67,13 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
-		// Check haiignore access
-		const accessValidation = this.validator.checkHAIIgnorePath(relPath!)
+		// Check clineignore access
+		const accessValidation = this.validator.checkClineIgnorePath(relPath!)
 		if (!accessValidation.ok) {
-			await config.callbacks.say("clineignore_error", relPath)
-			return formatResponse.toolError(formatResponse.haiIgnoreError(relPath!))
+			if (!config.isSubagentExecution) {
+				await config.callbacks.say("clineignore_error", relPath)
+			}
+			return formatResponse.toolError(formatResponse.clineIgnoreError(relPath!))
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
@@ -97,10 +102,14 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 		const completeMessage = JSON.stringify(sharedMessageProps)
 
-		if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relPath)) {
+		const shouldAutoApprove =
+			config.isSubagentExecution || (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relPath))
+		if (shouldAutoApprove) {
 			// Auto-approval flow
-			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			if (!config.isSubagentExecution) {
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
+				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			}
 
 			// Capture telemetry
 			telemetryService.captureToolUsage(
@@ -115,7 +124,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			)
 		} else {
 			// Manual approval flow
-			const notificationMessage = `HAI wants to read ${getWorkspaceBasename(absolutePath, "ReadFileToolHandler.notification")}`
+			const notificationMessage = `Cline wants to read ${getWorkspaceBasename(absolutePath, "ReadFileToolHandler.notification")}`
 
 			// Show notification
 			showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
@@ -135,18 +144,17 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
-			} else {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					provider,
-					false,
-					true,
-					workspaceContext,
-					block.isNativeToolCall,
-				)
 			}
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				false,
+				true,
+				workspaceContext,
+				block.isNativeToolCall,
+			)
 		}
 
 		// Run PreToolUse hook after approval but before execution
