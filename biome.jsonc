@@ -70,8 +70,7 @@
 				"noControlCharactersInRegex": "off",
 				"noShadowRestrictedNames": "off",
 				"noArrayIndexKey": "info",
-				"noAssignInExpressions": "info",
-				"useIterableCallbackReturn": "info"
+				"noAssignInExpressions": "info"
 			},
 			"complexity": {
 				"noUselessConstructor": "off",
@@ -95,11 +94,6 @@
 		"lineEnding": "lf",
 		"formatWithErrors": true
 	},
-	"css": {
-		"parser": {
-			"tailwindDirectives": true
-		}
-	},
 	"javascript": {
 		"formatter": {
 			"semicolons": "asNeeded",
@@ -118,21 +112,19 @@
 		}
 	},
 	"files": {
-		"ignoreUnknown": true,
 		"includes": [
 			"**",
-			// explicitly force files to be ignored by the scanner with !!
-			"!!**/dist",
-			"!!**/dist-*",
-			"!!**/out",
-			"!!**/evals",
-			"!!**/playwright",
-			"!!**/test-results",
-			"!!**/node_modules",
-			"!!**/webview-ui/build",
-			"!!**/generated",
-			"!!**/proto",
-			"!!**/tests/specs"
+			"!**/dist",
+			"!**/dist-*",
+			"!**/out",
+			"!**/evals",
+			"!**/playwright",
+			"!**/test-results",
+			"!**/node_modules",
+			"!**/webview-ui/build",
+			"!**/generated",
+			"!**/proto",
+			"!**/tests/specs"
 		]
 	},
 	"plugins": [
@@ -162,37 +154,32 @@
 			],
 			"includes": [
 				"**",
-				"!!**/esbuild.*",
-				"!!**/*.mts",
-				"!!**/webview-ui/**",
-				"!!**/evals/**",
-				"!!**/standalone/**",
-				"!!**/cli/**",
-				"!!**/e2e/**",
-				"!!**/test/**",
-				"!!**/__tests__/**",
-				"!!**/*.test.ts",
-				"!!**/*.stories.ts",
-				"!!src/dev/**",
-				"!!**/*.mjs",
-				"!!**/*.js",
-				"!!**/scripts/**",
-				"!!**/*.tsx",
-				"!!**/testing-platform/**",
-				// ACP mode must redirect console to stderr - this is intentional
-				"!!cli/src/acp/index.ts"
+				"!**/webview-ui/**",
+				"!**/evals/**",
+				"!**/standalone/**",
+				"!**/e2e/**",
+				"!**/test/**",
+				"!**/__tests__/**",
+				"!**/*.test.ts",
+				"!**/*.stories.ts",
+				"!src/dev/**",
+				"!**/*.mjs",
+				"!**/*.js",
+				"!**/scripts/**",
+				"!**/*.tsx",
+				"!**/testing-platform/**"
 			]
 		},
 		{
 			"includes": [
 				"**",
-				"!!src/core/storage/state-migrations.ts",
-				"!!src/core/storage/FileContextTracker.ts",
-				"!!src/core/context/context-tracking/FileContextTracker.ts",
-				"!!src/common.ts",
-				"!!src/services/logging/distinctId.ts",
-				"!!src/core/storage/utils/state-helpers.ts",
-				"!!src/extension.ts"
+				"!src/core/storage/state-migrations.ts",
+				"!src/core/storage/FileContextTracker.ts",
+				"!src/core/context/context-tracking/FileContextTracker.ts",
+				"!src/common.ts",
+				"!src/services/logging/distinctId.ts",
+				"!src/core/storage/utils/state-helpers.ts",
+				"!src/extension.ts"
 			],
 			"plugins": [
 				"src/dev/grit/use-cache-service.grit"
