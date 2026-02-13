@@ -72,6 +72,7 @@ const ChatView = ({
 		mode,
 		userInfo,
 		currentFocusChainChecklist,
+		focusChainSettings,
 		hooksEnabled,
 	} = useExtensionState()
 	// const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
@@ -370,6 +371,10 @@ const ChatView = ({
 	}, [modifiedMessages])
 
 	const lastProgressMessageText = useMemo(() => {
+		if (!focusChainSettings.enabled) {
+			return undefined
+		}
+
 		// First check if we have a current focus chain list from the extension state
 		if (currentFocusChainChecklist) {
 			return currentFocusChainChecklist
@@ -378,7 +383,12 @@ const ChatView = ({
 		// Fall back to the last task_progress message if no state focus chain list
 		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
 		return lastProgressMessage?.text
-	}, [modifiedMessages, currentFocusChainChecklist])
+	}, [focusChainSettings.enabled, modifiedMessages, currentFocusChainChecklist])
+
+	const showFocusChainPlaceholder = useMemo(() => {
+		// Show placeholder whenever focus chain is enabled and no checklist exists yet.
+		return focusChainSettings.enabled && !lastProgressMessageText
+	}, [focusChainSettings.enabled, lastProgressMessageText])
 
 	const groupedMessages = useMemo(() => {
 		return groupLowStakesTools(groupMessages(visibleMessages))
@@ -406,6 +416,7 @@ const ChatView = ({
 							supportsPromptCache: selectedModelInfo.supportsPromptCache,
 							supportsImages: selectedModelInfo.supportsImages || false,
 						}}
+						showFocusChainPlaceholder={showFocusChainPlaceholder}
 						task={task}
 					/>
 				) : (
