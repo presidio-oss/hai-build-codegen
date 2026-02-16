@@ -152,18 +152,26 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	// Build flat list of hooks
 	const hookEntries = useMemo(() => {
 		const entries: { hook: HookInfo; isGlobal: boolean; workspaceName?: string }[] = []
-		globalHooks.forEach((hook) => entries.push({ hook, isGlobal: true }))
-		workspaceHooks.forEach((ws) => {
-			ws.hooks.forEach((hook) => entries.push({ hook, isGlobal: false, workspaceName: ws.workspaceName }))
-		})
+		for (const hook of globalHooks) {
+			entries.push({ hook, isGlobal: true })
+		}
+		for (const ws of workspaceHooks) {
+			for (const hook of ws.hooks) {
+				entries.push({ hook, isGlobal: false, workspaceName: ws.workspaceName })
+			}
+		}
 		return entries.sort((a, b) => a.hook.name.localeCompare(b.hook.name))
 	}, [globalHooks, workspaceHooks])
 
 	// Build flat list of skills
 	const skillEntries = useMemo(() => {
 		const entries: { skill: SkillInfo; isGlobal: boolean }[] = []
-		globalSkills.forEach((skill) => entries.push({ skill, isGlobal: true }))
-		localSkills.forEach((skill) => entries.push({ skill, isGlobal: false }))
+		for (const skill of globalSkills) {
+			entries.push({ skill, isGlobal: true })
+		}
+		for (const skill of localSkills) {
+			entries.push({ skill, isGlobal: false })
+		}
 		return entries.sort((a, b) => a.skill.name.localeCompare(b.skill.name))
 	}, [globalSkills, localSkills])
 

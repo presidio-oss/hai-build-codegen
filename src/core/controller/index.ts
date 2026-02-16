@@ -675,6 +675,20 @@ export class Controller {
 			tags: item.tags ?? [],
 		}))
 
+		// Add local MCPs (like Specifai) to the marketplace catalog
+		const { getAllLocalMcps } = await import("@/utils/local-mcp-registry")
+		const localMcps = getAllLocalMcps()
+		const now = new Date().toISOString()
+		for (const localMcp of Object.values(localMcps)) {
+			items.push({
+				...localMcp,
+				createdAt: now,
+				updatedAt: now,
+				lastGithubSync: now,
+				isLocal: true,
+			} as McpMarketplaceItem)
+		}
+
 		// Filter by allowlist if configured
 		if (allowedMCPServers) {
 			const allowedIds = new Set(allowedMCPServers.map((server) => server.id))

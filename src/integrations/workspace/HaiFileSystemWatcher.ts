@@ -1,7 +1,7 @@
+import * as chokidar from "chokidar"
 import * as fs from "fs/promises"
 import ignore from "ignore"
 import * as path from "path"
-import Watcher from "watcher"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../../core/controller"
 import { GlobalFileNames } from "../../global-constants"
@@ -11,7 +11,7 @@ class HaiFileSystemWatcher {
 	private sourceFolder: string
 	private ig: ReturnType<typeof ignore>
 	private providerRef: WeakRef<Controller>
-	private watcher: Watcher | undefined
+	private watcher: chokidar.FSWatcher | undefined
 
 	constructor(provider: Controller, sourceFolder: string) {
 		this.sourceFolder = sourceFolder
@@ -46,11 +46,14 @@ class HaiFileSystemWatcher {
 	private async initializeWatcher() {
 		await this.loadGitIgnore()
 
-		this.watcher = new Watcher(this.sourceFolder, {
-			recursive: true,
-			debounce: 1000,
+		this.watcher = chokidar.watch(this.sourceFolder, {
+			persistent: true,
 			ignoreInitial: true,
-			ignore: (targetPath: string) => {
+			awaitWriteFinish: {
+				stabilityThreshold: 1000,
+				pollInterval: 100,
+			},
+			ignored: (targetPath: string) => {
 				if (!targetPath || targetPath.trim() === "") {
 					Logger.warn("HaiFileSystemWatcher Ignoring empty or invalid path.")
 					return true
@@ -86,7 +89,7 @@ class HaiFileSystemWatcher {
 			// this.providerRef.deref()?.invokeReindex([filePath], FileOperations.Delete)
 		})
 
-		this.watcher.on("add", (filePath) => {
+		this.watcher.on("add", (filePath: string) => {
 			Logger.log("HaiFileSystemWatcher File added", filePath)
 
 			// Check for .hai.config
@@ -102,7 +105,7 @@ class HaiFileSystemWatcher {
 			// this.providerRef.deref()?.invokeReindex([filePath], FileOperations.Create)
 		})
 
-		this.watcher.on("change", (filePath) => {
+		this.watcher.on("change", (filePath: string) => {
 			Logger.log("HaiFileSystemWatcher File changes", filePath)
 
 			// Check for .hai.config

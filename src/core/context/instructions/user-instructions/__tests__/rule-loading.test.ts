@@ -8,7 +8,7 @@ describe("rule loading with paths frontmatter", () => {
 	it("filters rules by evaluationContext.paths", async () => {
 		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "cline-rules-test-"))
 		try {
-			const rulesDir = path.join(tmp, ".clinerules")
+			const rulesDir = path.join(tmp, ".hairules")
 			await fs.mkdir(rulesDir, { recursive: true })
 			await fs.writeFile(path.join(rulesDir, "universal.md"), "Always on")
 			await fs.writeFile(path.join(rulesDir, "scoped.md"), `---\npaths:\n  - "src/**"\n---\n\nOnly for src`)
@@ -40,7 +40,7 @@ describe("rule loading with paths frontmatter", () => {
 	it("treats invalid YAML frontmatter as fail-open and preserves the raw frontmatter for the LLM", async () => {
 		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "cline-rules-test-"))
 		try {
-			const rulesDir = path.join(tmp, ".clinerules")
+			const rulesDir = path.join(tmp, ".hairules")
 			await fs.mkdir(rulesDir, { recursive: true })
 			// Intentionally invalid YAML (unquoted '*' is a YAML alias indicator)
 			await fs.writeFile(
@@ -70,7 +70,7 @@ describe("rule loading with paths frontmatter", () => {
 	it("treats paths: [] as match-nothing (fail-closed)", async () => {
 		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "cline-rules-test-"))
 		try {
-			const rulesDir = path.join(tmp, ".clinerules")
+			const rulesDir = path.join(tmp, ".hairules")
 			await fs.mkdir(rulesDir, { recursive: true })
 			await fs.writeFile(path.join(rulesDir, "scoped-empty.md"), `---\npaths: []\n---\n\nShould never activate`)
 
@@ -92,7 +92,7 @@ describe("rule loading with paths frontmatter", () => {
 	it("keeps activatedConditionalRules order stable (matches input file order)", async () => {
 		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "cline-rules-test-"))
 		try {
-			const rulesDir = path.join(tmp, ".clinerules")
+			const rulesDir = path.join(tmp, ".hairules")
 			await fs.mkdir(rulesDir, { recursive: true })
 			await fs.writeFile(path.join(rulesDir, "a.md"), `---\npaths:\n  - "src/**"\n---\n\nA`)
 			await fs.writeFile(path.join(rulesDir, "b.md"), `---\npaths:\n  - "src/**"\n---\n\nB`)

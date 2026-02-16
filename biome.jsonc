@@ -111,6 +111,11 @@
 			"expand": "always"
 		}
 	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	},
 	"files": {
 		"includes": [
 			"**",
@@ -167,7 +172,9 @@
 				"!**/*.js",
 				"!**/scripts/**",
 				"!**/*.tsx",
-				"!**/testing-platform/**"
+				"!**/testing-platform/**",
+				"!cli/esbuild.mts",
+				"!cli/src/acp/index.ts"
 			]
 		},
 		{

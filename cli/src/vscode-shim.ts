@@ -57,7 +57,9 @@ export class EnvironmentVariableCollection {
 	}
 
 	forEach(callback: (variable: string, mutator: { value: string; type: string }, collection: this) => void) {
-		this.variables.forEach((mutator, variable) => callback(variable, mutator, this))
+		for (const [variable, mutator] of this.variables) {
+			callback(variable, mutator, this)
+		}
 	}
 
 	delete(variable: string) {
@@ -267,7 +269,9 @@ export class EventEmitter<T> {
 	}
 
 	fire(data: T): void {
-		this.listeners.forEach((listener) => listener(data))
+		for (const listener of this.listeners) {
+			listener(data)
+		}
 	}
 
 	dispose(): void {
@@ -279,7 +283,11 @@ export class Disposable {
 	constructor(private callOnDispose: () => void) {}
 
 	static from(...disposables: { dispose(): any }[]): Disposable {
-		return new Disposable(() => disposables.forEach((d) => d.dispose()))
+		return new Disposable(() => {
+			for (const d of disposables) {
+				d.dispose()
+			}
+		})
 	}
 
 	dispose(): void {

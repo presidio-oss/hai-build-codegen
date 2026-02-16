@@ -50,9 +50,13 @@ const originalConsole = {
  * All logging must go to stderr to avoid corrupting the protocol stream.
  */
 function redirectConsoleToStderr(): void {
+	// biome-ignore lint/suspicious/noConsole: Intentionally redirecting console methods
 	console.log = (...args) => console.error(...args)
+	// biome-ignore lint/suspicious/noConsole: Intentionally redirecting console methods
 	console.info = (...args) => console.error(...args)
+	// biome-ignore lint/suspicious/noConsole: Intentionally redirecting console methods
 	console.warn = (...args) => console.error(...args)
+	// biome-ignore lint/suspicious/noConsole: Intentionally redirecting console methods
 	console.debug = (...args) => console.error(...args)
 	// console.error already goes to stderr
 }

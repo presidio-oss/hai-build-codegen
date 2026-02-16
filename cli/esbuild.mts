@@ -102,15 +102,19 @@ const esbuildProblemMatcherPlugin: esbuild.Plugin = {
 	name: "esbuild-problem-matcher",
 	setup(build) {
 		build.onStart(() => {
+			// biome-ignore lint/suspicious/noConsole: Build script logging
 			console.log("[cli esbuild] Build started...")
 		})
 		build.onEnd((result) => {
-			result.errors.forEach(({ text, location }) => {
+			for (const { text, location } of result.errors) {
+				// biome-ignore lint/suspicious/noConsole: Build error reporting
 				console.error(`✘ [ERROR] ${text}`)
 				if (location) {
+					// biome-ignore lint/suspicious/noConsole: Build error reporting
 					console.error(`    ${location.file}:${location.line}:${location.column}:`)
 				}
-			})
+			}
+			// biome-ignore lint/suspicious/noConsole: Build script logging
 			console.log("[cli esbuild] Build finished")
 		})
 	},
@@ -197,12 +201,13 @@ const buildTimeEnvs = [
 	"CLINE_ENVIRONMENT",
 ]
 
-buildTimeEnvs.forEach((envVar) => {
+for (const envVar of buildTimeEnvs) {
 	if (process.env[envVar]) {
+		// biome-ignore lint/suspicious/noConsole: Build script logging
 		console.log(`[cli esbuild] ${envVar} env var is set`)
 		buildEnvVars[`process.env.${envVar}`] = JSON.stringify(process.env[envVar])
 	}
-})
+}
 
 if (production) {
 	buildEnvVars["process.env.IS_DEV"] = "false"
@@ -254,6 +259,7 @@ async function main() {
 	const ctx = await esbuild.context(config)
 	if (watch) {
 		await ctx.watch()
+		// biome-ignore lint/suspicious/noConsole: Build script logging
 		console.log("[cli] Watching for changes...")
 	} else {
 		await ctx.rebuild()
@@ -268,6 +274,7 @@ async function main() {
 }
 
 main().catch((e) => {
+	// biome-ignore lint/suspicious/noConsole: Error handling in build script
 	console.error(e)
 	process.exit(1)
 })

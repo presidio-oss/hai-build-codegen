@@ -21,7 +21,9 @@ type ExitMockFn = ReturnType<typeof vi.fn> & (() => void)
 const shutdownMockState = {
 	listeners: [] as Array<() => void>,
 	fire: () => {
-		shutdownMockState.listeners.forEach((listener) => listener())
+		for (const listener of shutdownMockState.listeners) {
+			listener()
+		}
 	},
 	reset: () => {
 		shutdownMockState.listeners = []

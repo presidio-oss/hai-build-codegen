@@ -1014,7 +1014,9 @@ export class McpHub {
 	}
 
 	private removeAllFileWatchers() {
-		this.fileWatchers.forEach((watcher) => watcher.close())
+		for (const watcher of this.fileWatchers.values()) {
+			watcher.close()
+		}
 		this.fileWatchers.clear()
 	}
 
