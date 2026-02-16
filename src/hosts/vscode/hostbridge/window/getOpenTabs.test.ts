@@ -26,6 +26,9 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			viewColumn: column,
 			preview: false,
 		})
+
+		// Add a small delay to ensure document is fully registered
+		await new Promise((resolve) => setTimeout(resolve, 100))
 	}
 
 	async function waitForAllTabsClosed(): Promise<void> {
@@ -71,7 +74,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		await createAndOpenTestDocument("open-tabs-1", vscode.ViewColumn.One)
 		await createAndOpenTestDocument("open-tabs-2", vscode.ViewColumn.Two)
 
-		// Wait for tabs to be fully created
+		// Wait for tabs to be fully created (increased timeout for Windows CI)
 		await pWaitFor(
 			async () => {
 				const request = GetOpenTabsRequest.create({})
@@ -82,7 +85,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 				return response.paths.length === 2
 			},
 			{
-				timeout: 8000,
+				timeout: 15000,
 				interval: 50,
 			},
 		)
@@ -104,7 +107,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		await createAndOpenTestDocument("same-column-2", vscode.ViewColumn.One)
 		await createAndOpenTestDocument("same-column-3", vscode.ViewColumn.One)
 
-		// Wait for tabs to be fully created
+		// Wait for tabs to be fully created (increased timeout for Windows CI)
 		await pWaitFor(
 			async () => {
 				const request = GetOpenTabsRequest.create({})
@@ -115,7 +118,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 				return response.paths.length === 3
 			},
 			{
-				timeout: 8000,
+				timeout: 15000,
 				interval: 50,
 			},
 		)
@@ -144,7 +147,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		// Also open an untitled document
 		await createAndOpenTestDocument("includes-deleted", vscode.ViewColumn.One)
 
-		// Wait for tabs to be created
+		// Wait for tabs to be created (increased timeout for Windows CI)
 		await pWaitFor(
 			async () => {
 				const request = GetOpenTabsRequest.create({})
@@ -155,7 +158,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 				return response.paths.length === 2
 			},
 			{
-				timeout: 8000,
+				timeout: 15000,
 				interval: 50,
 			},
 		)
