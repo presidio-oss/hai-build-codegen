@@ -181,10 +181,12 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(3)
+			// Should include 3 API items + 1 local Specifai MCP = 4 total
+			catalog!.items.should.have.length(4)
 			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
 			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/database")
 			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/web")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/presidio-oss/specifai-mcp-server")
 		})
 
 		it("should return full catalog when remote config has no allowedMCPServers", async () => {
@@ -196,7 +198,8 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(3)
+			// Should include 3 API items + 1 local Specifai MCP = 4 total
+			catalog!.items.should.have.length(4)
 		})
 
 		it("should return full catalog when allowedMCPServers is undefined", async () => {
@@ -208,7 +211,8 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(3)
+			// Should include 3 API items + 1 local Specifai MCP = 4 total
+			catalog!.items.should.have.length(4)
 		})
 	})
 
@@ -323,11 +327,14 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(1)
-			catalog!.items[0].githubStars.should.equal(0)
-			catalog!.items[0].downloadCount.should.equal(0)
-			catalog!.items[0].tags.should.be.an.Array()
-			catalog!.items[0].tags.should.have.length(0)
+			// Should include 1 API item + 1 local Specifai MCP = 2 total
+			catalog!.items.should.have.length(2)
+			// Find the incomplete item (not the Specifai one)
+			const incompleteItem = catalog!.items.find((item) => item.mcpId === "github.com/test/incomplete")
+			incompleteItem!.githubStars.should.equal(0)
+			incompleteItem!.downloadCount.should.equal(0)
+			incompleteItem!.tags.should.be.an.Array()
+			incompleteItem!.tags.should.have.length(0)
 		})
 	})
 
