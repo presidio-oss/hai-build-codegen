@@ -95,7 +95,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	refreshOpenRouterModels: () => void
 	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
-	refreshLiteLlmModels: () => void
+	refreshLiteLlmModels: () => Promise<void>
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -280,7 +280,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		vscodeTerminalExecutionMode: "vscodeTerminal",
 		terminalOutputLineLimit: 500,
 		maxConsecutiveMistakes: 3,
-		subagentTerminalOutputLineLimit: 2000,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
@@ -290,6 +289,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		subagentsEnabled: false,
 		clineWebToolsEnabled: { user: true, featureFlag: false },
 		worktreesEnabled: { user: true, featureFlag: false },
 		autoCondenseThreshold: undefined,
@@ -301,8 +301,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,
 		lastDismissedCliBannerVersion: 0,
-		subagentsEnabled: false,
 		backgroundEditEnabled: false,
+		doubleCheckCompletionEnabled: false,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 
@@ -765,7 +765,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 
 	const refreshLiteLlmModels = useCallback(() => {
-		ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
+		return ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
 				const models = fromProtobufModels(response.models)
 				setLiteLlmModels(models)

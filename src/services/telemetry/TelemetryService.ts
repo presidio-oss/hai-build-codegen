@@ -115,47 +115,52 @@ export class TelemetryService {
 	])
 
 	private userId?: string
+	private activeOrg: {
+		organization_id: string
+		organization_name: string
+		member_id: string
+	} | null = null
 	private taskTurnCounts = new Map<string, number>()
 	private taskToolCallCounts = new Map<string, number>()
 	private taskErrorCounts = new Map<string, number>()
 	public static readonly METRICS = {
 		TASK: {
-			TURNS_TOTAL: "hai.turns.total",
-			TURNS_PER_TASK: "hai.turns.per_task",
-			TOKENS_INPUT_TOTAL: "hai.tokens.input.total",
-			TOKENS_INPUT_PER_RESPONSE: "hai.tokens.input.per_response",
-			TOKENS_OUTPUT_TOTAL: "hai.tokens.output.total",
-			TOKENS_OUTPUT_PER_RESPONSE: "hai.tokens.output.per_response",
-			COST_TOTAL: "hai.cost.total",
-			COST_PER_EVENT: "hai.cost.per_event",
+			TURNS_TOTAL: "cline.turns.total",
+			TURNS_PER_TASK: "cline.turns.per_task",
+			TOKENS_INPUT_TOTAL: "cline.tokens.input.total",
+			TOKENS_INPUT_PER_RESPONSE: "cline.tokens.input.per_response",
+			TOKENS_OUTPUT_TOTAL: "cline.tokens.output.total",
+			TOKENS_OUTPUT_PER_RESPONSE: "cline.tokens.output.per_response",
+			COST_TOTAL: "cline.cost.total",
+			COST_PER_EVENT: "cline.cost.per_event",
 		},
 		CACHE: {
-			WRITE_TOTAL: "hai.cache.write.tokens.total",
-			WRITE_PER_EVENT: "hai.cache.write.tokens.per_event",
-			READ_TOTAL: "hai.cache.read.tokens.total",
-			READ_PER_EVENT: "hai.cache.read.tokens.per_event",
-			HITS_TOTAL: "hai.cache.hits.total",
+			WRITE_TOTAL: "cline.cache.write.tokens.total",
+			WRITE_PER_EVENT: "cline.cache.write.tokens.per_event",
+			READ_TOTAL: "cline.cache.read.tokens.total",
+			READ_PER_EVENT: "cline.cache.read.tokens.per_event",
+			HITS_TOTAL: "cline.cache.hits.total",
 		},
 		TOOLS: {
-			CALLS_TOTAL: "hai.tool.calls.total",
-			CALLS_PER_TASK: "hai.tool.calls.per_task",
+			CALLS_TOTAL: "cline.tool.calls.total",
+			CALLS_PER_TASK: "cline.tool.calls.per_task",
 		},
 		ERRORS: {
-			TOTAL: "hai.errors.total",
-			PER_TASK: "hai.errors.per_task",
+			TOTAL: "cline.errors.total",
+			PER_TASK: "cline.errors.per_task",
 		},
 		API: {
-			TTFT_SECONDS: "hai.api.ttft.seconds",
-			DURATION_SECONDS: "hai.api.duration.seconds",
-			THROUGHPUT_TOKENS_PER_SECOND: "hai.api.throughput.tokens_per_second",
+			TTFT_SECONDS: "cline.api.ttft.seconds",
+			DURATION_SECONDS: "cline.api.duration.seconds",
+			THROUGHPUT_TOKENS_PER_SECOND: "cline.api.throughput.tokens_per_second",
 		},
 		HOOKS: {
-			EXECUTIONS_TOTAL: "hai.hooks.executions.total",
-			DURATION_SECONDS: "hai.hooks.duration.seconds",
-			FAILURES_TOTAL: "hai.hooks.failures.total",
-			CANCELLATIONS_TOTAL: "hai.hooks.cancellations.total",
-			CONTEXT_MODIFICATIONS_TOTAL: "hai.hooks.context_modifications.total",
-			CACHE_ACCESSES_TOTAL: "hai.hooks.cache.accesses.total",
+			EXECUTIONS_TOTAL: "cline.hooks.executions.total",
+			DURATION_SECONDS: "cline.hooks.duration.seconds",
+			FAILURES_TOTAL: "cline.hooks.failures.total",
+			CANCELLATIONS_TOTAL: "cline.hooks.cancellations.total",
+			CONTEXT_MODIFICATIONS_TOTAL: "cline.hooks.context_modifications.total",
+			CACHE_ACCESSES_TOTAL: "cline.hooks.cache.accesses.total",
 		},
 	}
 	// Event constants for tracking user interactions and system events
@@ -164,6 +169,7 @@ export class TelemetryService {
 
 		USER: {
 			OPT_OUT: "user.opt_out",
+			OPT_IN: "user.opt_in",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
 			EXTENSION_STORAGE_ERROR: "user.extension_storage_error",
@@ -267,7 +273,7 @@ export class TelemetryService {
 			// Tracks when yolo mode setting is toggled on/off
 			YOLO_MODE_TOGGLED: "task.yolo_mode_toggled",
 			// Tracks when Cline web tools setting is toggled on/off
-			CLINE_WEB_TOOLS_TOGGLED: "task.hai_web_tools_toggled",
+			CLINE_WEB_TOOLS_TOGGLED: "task.cline_web_tools_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
 			// Terminal execution telemetry events
@@ -322,6 +328,10 @@ export class TelemetryService {
 			// Tracks when a worktree merge is attempted
 			MERGE_ATTEMPTED: "worktree.merge_attempted",
 		},
+		HOST: {
+			// Tracks events detected from the host environment
+			DETECTED: "host.detected",
+		},
 	}
 
 	public static async create(): Promise<TelemetryService> {
@@ -363,9 +373,8 @@ export class TelemetryService {
 	 * Updates the telemetry state based on user preferences and VSCode settings
 	 * Only enables telemetry if both VSCode global telemetry is enabled and user has opted in
 	 * @param didUserOptIn Whether the user has explicitly opted into telemetry
-	 * @param skipProviderRecreation If true, don't recreate providers (used when providers were just updated)
 	 */
-	public async updateTelemetryState(didUserOptIn: boolean, skipProviderRecreation: boolean = false): Promise<void> {
+	public async updateTelemetryState(didUserOptIn: boolean): Promise<void> {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 
 		// We only enable telemetry if global host telemetry is enabled
@@ -377,7 +386,7 @@ export class TelemetryService {
 					.showMessage({
 						type: ShowMessageType.WARNING,
 						message:
-							"Anonymous HAI error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
+							"Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
 						options: {
 							items: ["Open Settings"],
 						},
@@ -391,33 +400,23 @@ export class TelemetryService {
 					})
 			}
 		}
+	}
 
-		// Update all providers
-		this.providers.forEach((provider) => {
-			provider.setOptIn(didUserOptIn)
-		})
+	/**
+	 * Captures when a user explicitly opts out of telemetry.
+	 * Uses captureRequired to ensure the event is sent before telemetry is disabled.
+	 * Should only be called on explicit user action, not on init/sync.
+	 */
+	public captureUserOptOut(): void {
+		this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
+	}
 
-		// If user opts in and we're not skipping recreation, reinitialize the providers to ensure fresh state
-		// This handles the case where telemetry was disabled and then re-enabled
-		if (didUserOptIn && !skipProviderRecreation) {
-			try {
-				const newProviders = await TelemetryProviderFactory.createProviders()
-				this.updateProviders(newProviders)
-				// Capture telemetry enabled event after providers are refreshed
-				this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-				Logger.info(`[TelemetryService] Telemetry re-enabled with ${newProviders.length} provider(s)`)
-			} catch (error) {
-				Logger.error("[TelemetryService] Failed to reinitialize providers on opt-in:", error)
-			}
-		} else if (didUserOptIn && skipProviderRecreation) {
-			// Just capture the enabled event without recreating providers
-			this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-			Logger.info("[TelemetryService] Telemetry enabled (providers already updated)")
-		} else {
-			// Capture opt-out event before disabling
-			this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
-			Logger.info("[TelemetryService] Telemetry disabled by user")
-		}
+	/**
+	 * Captures when a user explicitly opts back into telemetry.
+	 * Should only be called on explicit user action, not on init/sync.
+	 */
+	public captureUserOptIn(): void {
+		this.capture({ event: TelemetryService.EVENTS.USER.OPT_IN })
 	}
 
 	/**
@@ -469,6 +468,7 @@ export class TelemetryService {
 		return {
 			...this.telemetryMetadata,
 			...(this.userId ? { userId: this.userId } : {}),
+			...this.activeOrg,
 			...(extra ?? {}),
 		}
 	}
@@ -541,7 +541,9 @@ export class TelemetryService {
 	}
 
 	public captureExtensionActivated() {
-		// this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
+		this.capture({
+			event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED,
+		})
 	}
 
 	public captureExtensionStorageError(errorMessage: string, eventName: string) {
@@ -622,6 +624,16 @@ export class TelemetryService {
 		}
 
 		this.userId = userInfo.id
+		const activeOrg = userInfo.organizations?.find((org) => org.active)
+		if (activeOrg) {
+			this.activeOrg = {
+				organization_id: activeOrg.organizationId,
+				organization_name: activeOrg.name,
+				member_id: activeOrg.memberId,
+			}
+		} else {
+			this.activeOrg = null
+		}
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
 			try {
@@ -809,8 +821,8 @@ export class TelemetryService {
 	 */
 	public captureConversationTurnEvent(
 		ulid: string,
-		provider: string = "unknown",
-		model: string = "unknown",
+		provider = "unknown",
+		model = "unknown",
 		source: "user" | "assistant",
 		mode: Mode,
 		tokenUsage: {
@@ -2000,7 +2012,6 @@ export class TelemetryService {
 		return this.providers.length > 0
 			? this.providers[0].getSettings()
 			: {
-					extensionEnabled: false,
 					hostEnabled: false,
 					level: "off" as const,
 				}
@@ -2117,12 +2128,12 @@ export class TelemetryService {
 	}
 
 	public captureOnboardingProgress(args: { step: number; action?: string; model?: string; completed?: boolean }) {
-		// this.capture({
-		// 	event: TelemetryService.EVENTS.USER.ONBOARDING_PROGRESS,
-		// 	properties: {
-		// 		...args,
-		// 	},
-		// })
+		this.capture({
+			event: TelemetryService.EVENTS.USER.ONBOARDING_PROGRESS,
+			properties: {
+				...args,
+			},
+		})
 	}
 
 	// Hooks telemetry methods
@@ -2255,6 +2266,16 @@ export class TelemetryService {
 		})
 	}
 
+	public captureHostEvent(name: string, content: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.HOST.DETECTED,
+			properties: {
+				name,
+				content,
+			},
+		})
+	}
+
 	/**
 	 * Safely executes a telemetry call with error protection.
 	 *
@@ -2288,25 +2309,6 @@ export class TelemetryService {
 			const contextStr = context ? ` [Context: ${context}]` : ""
 			Logger.error(`[Telemetry] Failed to capture telemetry${contextStr}:`, error)
 		}
-	}
-
-	/**
-	 * Updates the telemetry providers with new instances
-	 * Used when telemetry configuration changes (e.g., .hai.config added/modified)
-	 * @param providers The new telemetry providers
-	 */
-	public updateProviders(providers: ITelemetryProvider[]): void {
-		// Dispose old providers
-		this.providers.forEach((provider) => {
-			void provider.dispose()
-		})
-		// Set new providers
-		this.providers = providers
-		// Enable telemetry for new providers
-		this.providers.forEach((provider) => {
-			provider.setOptIn(true)
-		})
-		Logger.info(`[TelemetryService] Updated with ${providers.length} telemetry provider(s)`)
 	}
 
 	/**

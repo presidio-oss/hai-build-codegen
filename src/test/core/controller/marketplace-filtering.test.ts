@@ -7,7 +7,6 @@ import axios from "axios"
 import * as sinon from "sinon"
 import { ClineEndpoint, ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
-import * as localMcpRegistry from "@/utils/local-mcp-registry"
 
 /**
  * Unit tests for Controller MCP marketplace filtering with remote config
@@ -19,13 +18,12 @@ describe("Controller Marketplace Filtering", () => {
 	let stateManagerStub: sinon.SinonStub
 	let mockStateManager: any
 	let axiosGetStub: sinon.SinonStub
-	let getAllLocalMcpsStub: sinon.SinonStub
-	let hostProviderInitialized: boolean = false
+	let hostProviderInitialized = false
 
 	// Initialize ClineEndpoint before tests run (required for ClineEnv.config() to work)
 	before(async () => {
 		if (!ClineEndpoint.isInitialized()) {
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize("/test/extension")
 		}
 	})
 
@@ -86,12 +84,18 @@ describe("Controller Marketplace Filtering", () => {
 		},
 	]
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		// Initialize HostProvider if not already done
 		if (!HostProvider.isInitialized()) {
 			const mockHostBridge: any = {
 				workspaceClient: {},
-				envClient: {},
+				envClient: {
+					getHostVersion: sinon.stub().resolves({
+						clineVersion: "1.0.0",
+						platform: "darwin",
+						clineType: "vscode",
+					}),
+				},
 				windowClient: {},
 				diffClient: {},
 			}
@@ -103,13 +107,16 @@ describe("Controller Marketplace Filtering", () => {
 				() => null as any, // createTerminalManager
 				mockHostBridge,
 				() => {}, // logToChannel
-				async () => "http://localhost", // getCallbackUrl
+				async (path: string) => `http://localhost${path}`, // getCallbackUrl
 				async () => "", // getBinaryLocation
 				"/test/extension", // extensionFsPath
 				"/test/storage", // globalStorageFsPath
 			)
 			hostProviderInitialized = true
 		}
+
+		// Initialize HostRegistryInfo before creating Controller
+		await require("@/registry").HostRegistryInfo.init()
 
 		// Mock VSCode context
 		mockContext = {
@@ -153,9 +160,6 @@ describe("Controller Marketplace Filtering", () => {
 			data: mockMarketplaceData,
 		})
 
-		// Mock local MCP registry to return empty (no local MCPs in tests)
-		getAllLocalMcpsStub = sinon.stub(localMcpRegistry, "getAllLocalMcps").returns({})
-
 		// Create controller instance
 		controller = new Controller(mockContext)
 	})
@@ -163,7 +167,6 @@ describe("Controller Marketplace Filtering", () => {
 	afterEach(() => {
 		stateManagerStub.restore()
 		axiosGetStub.restore()
-		getAllLocalMcpsStub.restore()
 
 		// Reset HostProvider if we initialized it
 		if (hostProviderInitialized) {
@@ -178,10 +181,12 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(3)
+			// Should include 3 API items + 1 local Specifai MCP = 4 total
+			catalog!.items.should.have.length(4)
 			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
 			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/database")
 			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/web")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/presidio-oss/specifai-mcp-server")
 		})
 
 		it("should return full catalog when remote config has no allowedMCPServers", async () => {
@@ -193,7 +198,8 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(3)
+			// Should include 3 API items + 1 local Specifai MCP = 4 total
+			catalog!.items.should.have.length(4)
 		})
 
 		it("should return full catalog when allowedMCPServers is undefined", async () => {
@@ -205,7 +211,8 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(3)
+			// Should include 3 API items + 1 local Specifai MCP = 4 total
+			catalog!.items.should.have.length(4)
 		})
 	})
 
@@ -320,11 +327,14 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(1)
-			catalog!.items[0].githubStars.should.equal(0)
-			catalog!.items[0].downloadCount.should.equal(0)
-			catalog!.items[0].tags.should.be.an.Array()
-			catalog!.items[0].tags.should.have.length(0)
+			// Should include 1 API item + 1 local Specifai MCP = 2 total
+			catalog!.items.should.have.length(2)
+			// Find the incomplete item (not the Specifai one)
+			const incompleteItem = catalog!.items.find((item) => item.mcpId === "github.com/test/incomplete")
+			incompleteItem!.githubStars.should.equal(0)
+			incompleteItem!.downloadCount.should.equal(0)
+			incompleteItem!.tags.should.be.an.Array()
+			incompleteItem!.tags.should.have.length(0)
 		})
 	})
 

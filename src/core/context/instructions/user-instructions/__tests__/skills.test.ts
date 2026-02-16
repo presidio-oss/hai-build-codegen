@@ -21,7 +21,6 @@ describe("Skills Utility Functions", () => {
 	let readdirStub: sinon.SinonStub
 	let statStub: sinon.SinonStub
 	let readFileStub: sinon.SinonStub
-	let ensureSkillsDirStub: sinon.SinonStub
 
 	// Use path.join for OS-independent paths
 	const TEST_CWD = path.join("/test", "project")
@@ -39,10 +38,14 @@ describe("Skills Utility Functions", () => {
 		readdirStub = sandbox.stub(fs.promises, "readdir")
 		statStub = sandbox.stub(fs.promises, "stat")
 		readFileStub = sandbox.stub(fs.promises, "readFile")
-		ensureSkillsDirStub = sandbox.stub(disk, "ensureSkillsDirectoryExists")
-
-		// Default: global skills dir
-		ensureSkillsDirStub.resolves(GLOBAL_SKILLS_DIR)
+		sandbox.stub(disk, "getSkillsDirectoriesForScan").returns([
+			{ path: path.join(TEST_CWD, ".hairules", "skills"), source: "project" },
+			{ path: path.join(TEST_CWD, ".cline", "skills"), source: "project" },
+			{ path: path.join(TEST_CWD, ".claude", "skills"), source: "project" },
+			{ path: path.join(TEST_CWD, ".agents", "skills"), source: "project" },
+			{ path: GLOBAL_SKILLS_DIR, source: "global" },
+			{ path: path.join("/home", "user", ".agents", "skills"), source: "global" },
+		])
 
 		// Default: no directories exist
 		fileExistsStub.resolves(false)
@@ -78,24 +81,30 @@ Instructions here`)
 		})
 
 		it("should discover skills from project .hairules/skills directory", async () => {
-			const projectSkillsDir = path.join(TEST_CWD, ".hairules", "skills")
-			const skillDir = path.join(projectSkillsDir, "explaining-code")
-			const skillMdPath = path.join(skillDir, "SKILL.md")
+			// Set up stubs for first three project skill directories (.hairules, .cline, .claude)
+			const projectDirs = [".hairules", ".cline", ".claude"]
+			const skillName = "explaining-code"
 
-			fileExistsStub.withArgs(projectSkillsDir).resolves(true)
-			fileExistsStub.withArgs(skillMdPath).resolves(true)
-			isDirectoryStub.withArgs(projectSkillsDir).resolves(true)
-			readdirStub.withArgs(projectSkillsDir).resolves(["explaining-code"])
-			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
-			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
+			for (const dir of projectDirs) {
+				const projectSkillsDir = path.join(TEST_CWD, dir, "skills")
+				const skillDir = path.join(projectSkillsDir, skillName)
+				const skillMdPath = path.join(skillDir, "SKILL.md")
+
+				fileExistsStub.withArgs(projectSkillsDir).resolves(true)
+				fileExistsStub.withArgs(skillMdPath).resolves(true)
+				isDirectoryStub.withArgs(projectSkillsDir).resolves(true)
+				readdirStub.withArgs(projectSkillsDir).resolves([skillName])
+				statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+				readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
 name: explaining-code
 description: Explains code with diagrams and analogies
 ---
 Use analogies and ASCII diagrams when explaining code.`)
+			}
 
 			const skills = await discoverSkills(TEST_CWD)
 
-			// All three project skill directory constants point to .hairules/skills,
+			// All three project skill directory constants (.hairules, .cline, .claude) discover the same skill,
 			// so the skill is discovered 3 times. Deduplication happens in getAvailableSkills.
 			expect(skills).to.have.lengthOf(3)
 			expect(skills[0].name).to.equal("explaining-code")
@@ -110,6 +119,29 @@ Use analogies and ASCII diagrams when explaining code.`)
 		// Note: The tests for .cline/skills and .claude/skills directories have been removed
 		// because all three project skill directory constants now point to the same
 		// .hairules/skills directory. The main test above covers the project skills discovery.
+
+		it("should discover skills from project .agents/skills directory", async () => {
+			const agentsSkillsDir = path.join(TEST_CWD, ".agents", "skills")
+			const skillDir = path.join(agentsSkillsDir, "testing")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(agentsSkillsDir).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(agentsSkillsDir).resolves(true)
+			readdirStub.withArgs(agentsSkillsDir).resolves(["testing"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
+name: testing
+description: Write comprehensive tests
+---
+Always write tests.`)
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(1)
+			expect(skills[0].name).to.equal("testing")
+			expect(skills[0].source).to.equal("project")
+		})
 
 		it("should handle empty skills directories gracefully", async () => {
 			fileExistsStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)

@@ -32,6 +32,7 @@ import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { StateManager } from "./core/storage/StateManager"
 import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
+	cleanupOldApiKey,
 	migrateCustomInstructionsToGlobalRules,
 	migrateTaskHistoryToFile,
 	migrateWelcomeViewCompleted,
@@ -52,7 +53,7 @@ import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
-import { SharedUriHandler } from "./services/uri/SharedUriHandler"
+import { SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
 
@@ -154,7 +155,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const handleUri = async (uri: vscode.Uri) => {
 		const url = decodeURIComponent(uri.toString())
-		const success = await SharedUriHandler.handleUri(url)
+		const isTaskUri = getUriPath(url) === TASK_URI_PATH
+
+		if (isTaskUri) {
+			await openClineSidebarForTaskUri()
+		}
+
+		let success = await SharedUriHandler.handleUri(url)
+
+		// Task deeplinks can race with first-time sidebar initialization.
+		if (!success && isTaskUri) {
+			await openClineSidebarForTaskUri()
+			success = await SharedUriHandler.handleUri(url)
+		}
+
 		if (!success) {
 			Logger.warn("Extension URI handler: Failed to process URI:", uri.toString())
 		}
@@ -355,7 +369,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus: boolean = false) => {
+		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus = false) => {
 			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
 			// Show the webview
@@ -497,7 +511,7 @@ ${ctx.cellJson || "{}"}
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
-			generateCommitMsg(webview.controller.stateManager, scm)
+			generateCommitMsg(webview.controller, scm)
 		}),
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			abortCommitGeneration()
@@ -584,7 +598,21 @@ function setupHostProvider(context: ExtensionContext) {
 	const createCommentReview = () => getVscodeCommentReviewController()
 	const createTerminalManager = () => new VscodeTerminalManager()
 
-	const getCallbackUrl = async () => `${vscode.env.uriScheme || "vscode"}://${context.extension.id}`
+	const getCallbackUrl = async (path: string) => {
+		const scheme = vscode.env.uriScheme || "vscode"
+		const callbackUri = vscode.Uri.parse(`${scheme}://${context.extension.id}${path}`)
+
+		if (vscode.env.uiKind === vscode.UIKind.Web) {
+			// In VS Code Web (Codespaces, code serve-web), vscode:// URIs redirect to the
+			// desktop app instead of staying in the browser. Use asExternalUri to convert
+			// to a web-reachable HTTPS URL that routes back to the extension's URI handler.
+			const externalUri = await vscode.env.asExternalUri(callbackUri)
+			return externalUri.toString(true)
+		}
+
+		// In regular desktop VS Code, use the vscode:// URI protocol handler directly.
+		return callbackUri.toString(true)
+	}
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
@@ -597,6 +625,31 @@ function setupHostProvider(context: ExtensionContext) {
 		context.extensionUri.fsPath,
 		context.globalStorageUri.fsPath,
 	)
+}
+
+function getUriPath(url: string): string | undefined {
+	try {
+		return new URL(url).pathname
+	} catch {
+		return undefined
+	}
+}
+
+async function openClineSidebarForTaskUri(): Promise<void> {
+	const sidebarWaitTimeoutMs = 3000
+	const sidebarWaitIntervalMs = 50
+
+	await vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
+
+	const startedAt = Date.now()
+	while (Date.now() - startedAt < sidebarWaitTimeoutMs) {
+		if (WebviewProvider.getVisibleInstance()) {
+			return
+		}
+		await new Promise((resolve) => setTimeout(resolve, sidebarWaitIntervalMs))
+	}
+
+	Logger.warn("Task URI handling timed out waiting for Cline sidebar visibility")
 }
 
 async function getBinaryLocation(name: string): Promise<string> {
@@ -659,6 +712,7 @@ if (IS_DEV) {
 // VSCode-specific storage migrations
 async function performStorageMigrations(context: ExtensionContext): Promise<void> {
 	try {
+		cleanupOldApiKey()
 		// Migrate is not done if the new storage does not have the lastShownAnnouncementId flag
 		const hasMigrated = StateManager.get().getGlobalStateKey("lastShownAnnouncementId")
 		if (hasMigrated !== undefined) {

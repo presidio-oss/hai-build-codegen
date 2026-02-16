@@ -267,6 +267,15 @@ export class LangfuseProvider implements ITelemetryProvider {
 		this.distinctId = distinctId
 	}
 
+	public async forceFlush(): Promise<void> {
+		if (!this.enabled || !this.langfuse) return
+		try {
+			await this.langfuse.flushAsync()
+		} catch (error) {
+			Logger.error("[LangfuseProvider] Error during forceFlush:", error)
+		}
+	}
+
 	public async dispose(): Promise<void> {
 		if (!this.enabled || !this.langfuse) return
 

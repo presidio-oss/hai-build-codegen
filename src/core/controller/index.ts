@@ -6,7 +6,6 @@ import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
 import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
-import HaiFileSystemWatcher from "@integrations/workspace/HaiFileSystemWatcher"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import type { ApiProvider, ModelInfo } from "@shared/api"
@@ -24,9 +23,9 @@ import fs from "fs/promises"
 import open from "open"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-import type { FolderLockWithRetryResult } from "src/core/locks/types"
 import type * as vscode from "vscode"
 import { ClineEnv } from "@/config"
+import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
@@ -34,16 +33,13 @@ import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
-import { getStarCount } from "@/services/github/github"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
-import { TelemetryProviderFactory } from "@/services/telemetry/TelemetryProviderFactory"
-import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { Session } from "@/shared/services/Session"
 import { getLatestAnnouncementId } from "@/utils/announcements"
-import { getAllLocalMcps, getLocalMcp } from "@/utils/local-mcp-registry"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
@@ -84,9 +80,6 @@ export class Controller {
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
 
-	// File system watcher for .hai.config changes
-	private haiFileSystemWatcher?: HaiFileSystemWatcher
-
 	// Flag to prevent duplicate cancellations from spam clicking
 	private cancelInProgress = false
 
@@ -125,25 +118,23 @@ export class Controller {
 	}
 
 	/**
-	 * Initializes the file system watcher for .hai.config changes
-	 * This enables automatic telemetry reloading when config changes
+	 * Trigger a refresh of telemetry configuration when workspace config changes.
+	 * Minimal implementation: re-evaluates current opt-in state and notifies telemetry service.
 	 */
-	private initializeFileSystemWatcher() {
-		HostProvider.workspace
-			.getWorkspacePaths({})
-			.then((response) => {
-				const workspacePath = response.paths?.[0]
-				if (workspacePath) {
-					this.haiFileSystemWatcher = new HaiFileSystemWatcher(this, workspacePath)
-					Logger.log("[Controller] HaiFileSystemWatcher initialized for:", workspacePath)
-				}
-			})
-			.catch((error) => {
-				Logger.error("[Controller] Failed to initialize HaiFileSystemWatcher:", error)
-			})
+	public async updateTelemetryConfig(): Promise<void> {
+		try {
+			const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
+			const isOptedIn = telemetrySetting !== "disabled"
+			void telemetryService
+				.updateTelemetryState(isOptedIn)
+				.catch((err) => Logger.error("[Controller] Failed to update telemetry state:", err))
+		} catch (err) {
+			Logger.error("[Controller] updateTelemetryConfig error:", err)
+		}
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
+		Session.reset() // Reset session on controller initialization
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		this.stateManager = StateManager.get()
 		StateManager.get().registerCallbacks({
@@ -160,6 +151,7 @@ export class Controller {
 		this.authService = AuthService.getInstance(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
+		BannerService.initialize(this)
 
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo().then(() => {
 			this.startRemoteConfigTimer()
@@ -171,9 +163,6 @@ export class Controller {
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
-
-		// Initialize file system watcher for .hai.config changes
-		this.initializeFileSystemWatcher()
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints().catch((error) => {
@@ -196,12 +185,6 @@ export class Controller {
 		if (this.remoteConfigTimer) {
 			clearInterval(this.remoteConfigTimer)
 			this.remoteConfigTimer = undefined
-		}
-
-		// Dispose file system watcher
-		if (this.haiFileSystemWatcher) {
-			await this.haiFileSystemWatcher.dispose()
-			this.haiFileSystemWatcher = undefined
 		}
 
 		await this.clearTask()
@@ -283,7 +266,6 @@ export class Controller {
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
 		const vscodeTerminalExecutionMode = this.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
-		const subagentTerminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("subagentTerminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
@@ -347,7 +329,6 @@ export class Controller {
 			shellIntegrationTimeout,
 			terminalReuseEnabled: terminalReuseEnabled ?? true,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
-			subagentTerminalOutputLineLimit: subagentTerminalOutputLineLimit ?? 2000,
 			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			vscodeTerminalExecutionMode,
 			cwd,
@@ -378,10 +359,24 @@ export class Controller {
 	}
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
-		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
+		// Get previous setting to detect state changes
+		const previousSetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
+		const wasOptedIn = previousSetting !== "disabled"
 		const isOptedIn = telemetrySetting !== "disabled"
-		// Await the telemetry state update to ensure providers are properly initialized
-		await telemetryService.updateTelemetryState(isOptedIn)
+
+		// Capture opt-out event BEFORE updating (so it gets sent while telemetry is still enabled)
+		if (wasOptedIn && !isOptedIn) {
+			telemetryService.captureUserOptOut()
+		}
+
+		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
+		telemetryService.updateTelemetryState(isOptedIn)
+
+		// Capture opt-in event AFTER updating (so telemetry is enabled to receive it)
+		if (!wasOptedIn && isOptedIn) {
+			telemetryService.captureUserOptIn()
+		}
+
 		await this.postStateToWebview()
 	}
 
@@ -435,10 +430,9 @@ export class Controller {
 				)
 
 				return true
-			} else {
-				this.cancelTask()
-				return false
 			}
+			this.cancelTask()
+			return false
 		}
 
 		return false
@@ -674,52 +668,34 @@ export class Controller {
 		// Get allowlist from remote config
 		const allowedMCPServers = this.stateManager.getRemoteConfigSettings().allowedMCPServers
 
-		// Create an array to hold all local MCPs with their star counts
-		const localMcpItems: McpMarketplaceItem[] = []
-
-		// Get all local MCPs from registry
-		const localMcpIds = Object.keys(getAllLocalMcps())
-
-		// Fetch GitHub stars for each local MCP
-		for (const mcpId of localMcpIds) {
-			const mcp = getLocalMcp(mcpId)
-			if (mcp) {
-				// Update star count for this MCP and add isLocal flag
-				let gitHubStars = 0
-				try {
-					gitHubStars = await getStarCount(mcp.githubUrl)
-				} catch (error) {
-					Logger.error(`[fetchMcpMarketplaceFromApi] Failed to get star count for ${mcpId}:`, error)
-				}
-				localMcpItems.push({
-					...mcp,
-					githubStars: gitHubStars || 0,
-					isLocal: true,
-					createdAt: "",
-					updatedAt: "",
-					lastGithubSync: "",
-				})
-			}
-		}
-
-		let remoteItems: McpMarketplaceItem[] = (response.data || []).map((item: McpMarketplaceItem) => ({
+		let items: McpMarketplaceItem[] = (response.data || []).map((item: McpMarketplaceItem) => ({
 			...item,
 			githubStars: item.githubStars ?? 0,
 			downloadCount: item.downloadCount ?? 0,
 			tags: item.tags ?? [],
-			isLocal: false,
 		}))
+
+		// Add local MCPs (like Specifai) to the marketplace catalog
+		const { getAllLocalMcps } = await import("@/utils/local-mcp-registry")
+		const localMcps = getAllLocalMcps()
+		const now = new Date().toISOString()
+		for (const localMcp of Object.values(localMcps)) {
+			items.push({
+				...localMcp,
+				createdAt: now,
+				updatedAt: now,
+				lastGithubSync: now,
+				isLocal: true,
+			} as McpMarketplaceItem)
+		}
 
 		// Filter by allowlist if configured
 		if (allowedMCPServers) {
 			const allowedIds = new Set(allowedMCPServers.map((server) => server.id))
-			remoteItems = remoteItems.filter((item: McpMarketplaceItem) => allowedIds.has(item.mcpId))
+			items = items.filter((item: McpMarketplaceItem) => allowedIds.has(item.mcpId))
 		}
 
-		// Combine local MCPs first, then remote MCPs
-		const catalog: McpMarketplaceCatalog = {
-			items: [...localMcpItems, ...remoteItems],
-		}
+		const catalog: McpMarketplaceCatalog = { items }
 
 		// Store in cache file
 		await writeMcpMarketplaceCatalogToCache(catalog)
@@ -810,6 +786,30 @@ export class Controller {
 		return undefined
 	}
 
+	// Hicap
+	async handleHicapCallback(code: string) {
+		const apiKey: string = code
+
+		const hicap: ApiProvider = "hicap"
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+
+		// Update API configuration through cache service
+		const currentApiConfiguration = this.stateManager.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: hicap,
+			actModeApiProvider: hicap,
+			hicapApiKey: apiKey,
+		}
+		this.stateManager.setApiConfiguration(updatedConfig)
+
+		await this.postStateToWebview()
+		this.accountService
+		if (this.task) {
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+		}
+	}
+
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{
@@ -883,11 +883,11 @@ export class Controller {
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
 		const dictationSettings = this.stateManager.getGlobalSettingsKey("dictationSettings")
 		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
-		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
 		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
+		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 		const userInfo = this.stateManager.getGlobalStateKey("userInfo")
 		const mcpMarketplaceEnabled = this.stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
 		const mcpDisplayMode = this.stateManager.getGlobalStateKey("mcpDisplayMode")
@@ -912,13 +912,12 @@ export class Controller {
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const maxConsecutiveMistakes = this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
-		const subagentTerminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("subagentTerminalOutputLineLimit")
 		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
 		const lastDismissedInfoBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
 		const lastDismissedModelBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const dismissedBanners = this.stateManager.getGlobalStateKey("dismissedBanners")
-		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
+		const doubleCheckCompletionEnabled = this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -928,7 +927,8 @@ export class Controller {
 		const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold")
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
-		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
+		// Spread to create new array reference - React needs this to detect changes in useEffect dependencies
+		const clineMessages = [...(this.task?.messageStateHandler.getClineMessages() || [])]
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
 		const processedTaskHistory = (taskHistory || [])
@@ -943,7 +943,7 @@ export class Controller {
 		const version = ExtensionRegistryInfo.version
 		const clineConfig = ClineEnv.config()
 		const environment = clineConfig.environment
-		const banners = await this.getBanners()
+		const banners = BannerService.get().getActiveBanners() ?? []
 
 		// Check OpenAI Codex authentication status
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
@@ -967,11 +967,11 @@ export class Controller {
 			focusChainSettings,
 			dictationSettings: updatedDictationSettings,
 			preferredLanguage,
-			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled,
 			yoloModeToggled,
 			useAutoCondense,
+			subagentsEnabled,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,
@@ -1002,7 +1002,6 @@ export class Controller {
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 			maxConsecutiveMistakes,
-			subagentTerminalOutputLineLimit,
 			customPrompt,
 			taskHistory: processedTaskHistory,
 			shouldShowAnnouncement,
@@ -1032,11 +1031,11 @@ export class Controller {
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
 			lastDismissedCliBannerVersion,
 			dismissedBanners,
-			subagentsEnabled,
 			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
+			doubleCheckCompletionEnabled,
 			banners,
 			openAiCodexIsAuthenticated,
 		}
@@ -1079,28 +1078,5 @@ export class Controller {
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
 		return history
-	}
-
-	async getBanners(): Promise<BannerCardData[]> {
-		try {
-			return BannerService.get().getActiveBanners()
-		} catch (err) {
-			Logger.log(err)
-			return []
-		}
-	}
-
-	// TAG: HAI
-	async updateTelemetryConfig() {
-		// Refresh PostHog client and update Langfuse instance in telemetry
-		const providers = await TelemetryProviderFactory.createProviders()
-		await telemetryService.updateProviders(providers)
-
-		// Apply the current telemetry setting to the new providers
-		// Pass skipProviderRecreation=true since we just created the providers
-		const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
-		const isOptedIn = telemetrySetting !== "disabled"
-		await telemetryService.updateTelemetryState(isOptedIn, true)
-		Logger.log(`[Controller] Telemetry config updated, opted in: ${isOptedIn}`)
 	}
 }
