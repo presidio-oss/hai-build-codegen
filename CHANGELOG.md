@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.13.4
+
+### Patch Changes
+
+merge from cline v3.62.0 (see [changelog](https://github.com/cline/cline/blob/main/CHANGELOG.md#3620)).
+
+
 ## [3.13.3]
 
 ### Patch Changes
