@@ -23,7 +23,6 @@ import fs from "fs/promises"
 import open from "open"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-import type * as vscode from "vscode"
 import { ClineEnv } from "@/config"
 import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { HostProvider } from "@/hosts/host-provider"
@@ -35,6 +34,7 @@ import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
+import { ClineExtensionContext } from "@/shared/cline"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -117,23 +117,7 @@ export class Controller {
 		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 3600000) // 1 hour
 	}
 
-	/**
-	 * Trigger a refresh of telemetry configuration when workspace config changes.
-	 * Minimal implementation: re-evaluates current opt-in state and notifies telemetry service.
-	 */
-	public async updateTelemetryConfig(): Promise<void> {
-		try {
-			const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
-			const isOptedIn = telemetrySetting !== "disabled"
-			void telemetryService
-				.updateTelemetryState(isOptedIn)
-				.catch((err) => Logger.error("[Controller] Failed to update telemetry state:", err))
-		} catch (err) {
-			Logger.error("[Controller] updateTelemetryConfig error:", err)
-		}
-	}
-
-	constructor(readonly context: vscode.ExtensionContext) {
+	constructor(readonly context: ClineExtensionContext) {
 		Session.reset() // Reset session on controller initialization
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		this.stateManager = StateManager.get()
@@ -674,20 +658,6 @@ export class Controller {
 			downloadCount: item.downloadCount ?? 0,
 			tags: item.tags ?? [],
 		}))
-
-		// Add local MCPs (like Specifai) to the marketplace catalog
-		const { getAllLocalMcps } = await import("@/utils/local-mcp-registry")
-		const localMcps = getAllLocalMcps()
-		const now = new Date().toISOString()
-		for (const localMcp of Object.values(localMcps)) {
-			items.push({
-				...localMcp,
-				createdAt: now,
-				updatedAt: now,
-				lastGithubSync: now,
-				isLocal: true,
-			} as McpMarketplaceItem)
-		}
 
 		// Filter by allowlist if configured
 		if (allowedMCPServers) {
