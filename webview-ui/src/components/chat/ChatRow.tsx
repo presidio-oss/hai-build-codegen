@@ -894,8 +894,8 @@ export const ChatRowContent = memo(
 								onToggle={isReasoningStreaming ? undefined : handleToggle}
 								reasoningContent={message.text}
 								showChevron={!isReasoningStreaming || hasReasoningText}
-								title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 								showTitle={true}
+								title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 							/>
 						)
 					}
