@@ -1,80 +1,36 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import fs from "fs/promises"
-import os from "os"
 import path from "path"
 import sinon from "sinon"
-import { setDistinctId } from "@/services/logging/distinctId"
-import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
-import { loadFixture } from "./test-utils"
+import { createHookTestEnv, HookTestEnv, loadFixture, stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
 
 describe("TaskStart Hook", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let getEnv: () => { tempDir: string }
+	let hookTestEnv: HookTestEnv
 
-	// Helper to write executable hook script
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		await fs.writeFile(hookPath, nodeScript)
-		await fs.chmod(hookPath, 0o755)
+		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {
-		setDistinctId("test-id")
-		sandbox = sinon.createSandbox()
-		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-		await fs.mkdir(tempDir, { recursive: true })
-
-		// Create .hairules/hooks directory
-		const hooksDir = path.join(tempDir, ".hairules", "hooks")
-		await fs.mkdir(hooksDir, { recursive: true })
-
-		// Mock StateManager to return our temp directory
-		sandbox.stub(StateManager, "get").returns({
-			getGlobalStateKey: (key: string) => {
-				if (key === "workspaceRoots") {
-					return [{ path: tempDir }]
-				}
-				if (key === "primaryRootIndex") {
-					return 0
-				}
-				return undefined
-			},
-		} as any)
-
-		// Reset hook discovery cache for clean test state
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
+		hookTestEnv = await createHookTestEnv()
+		tempDir = hookTestEnv.tempDir
+		sandbox = hookTestEnv.sandbox
 
 		getEnv = () => ({ tempDir })
 	})
 
 	afterEach(async () => {
-		sandbox.restore()
-
-		// Clean up hook discovery cache
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
-
-		try {
-			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
-			// Ignore cleanup errors
-		}
+		await hookTestEnv.cleanup()
 	})
 
 	describe("Hook Input Format", () => {
 		it("should receive task metadata from startTask", async () => {
-			const hookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const metadata = input.taskStart.taskMetadata;
@@ -102,11 +58,11 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("All metadata present")
+			result.contextModification?.should.equal("All metadata present")
 		})
 
 		it("should receive all common hook input fields", async () => {
-			const hookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName === 'TaskStart' && 
@@ -135,11 +91,11 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 
 		it("should handle empty initialTask", async () => {
-			const hookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const initialTask = input.taskStart.taskMetadata.initialTask;
@@ -166,13 +122,13 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Task length: 0")
+			result.contextModification?.should.equal("Task length: 0")
 		})
 	})
 
 	describe("Hook Behavior", () => {
 		it("should allow task to start when hook returns cancel: false", async () => {
-			const hookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -197,11 +153,11 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TaskStart hook executed successfully")
+			result.contextModification?.should.equal("TaskStart hook executed successfully")
 		})
 
 		it("should block task when hook returns cancel: true", async () => {
-			const hookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: true,
@@ -226,11 +182,11 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Task execution blocked by hook")
+			result.errorMessage?.should.equal("Task execution blocked by hook")
 		})
 
 		it("should provide context modification even when not added to conversation", async () => {
-			const hookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
@@ -256,13 +212,13 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TASK_START: Task 'Build a todo app' beginning")
+			result.contextModification?.should.equal("TASK_START: Task 'Build a todo app' beginning")
 		})
 	})
 
 	describe("Error Handling", () => {
 		it("should handle hook script errors", async () => {
-			const hookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 console.error("Hook execution error");
 process.exit(1);`
@@ -290,7 +246,7 @@ process.exit(1);`
 		})
 
 		it("should handle malformed JSON output from hook", async () => {
-			const hookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 console.log("not valid json")`
 
@@ -319,20 +275,16 @@ console.log("not valid json")`
 
 	describe("Global and Workspace Hooks", () => {
 		let globalHooksDir: string
-		let originalGetAllHooksDirs: any
+		let workspaceHooksDir: string
 
 		beforeEach(async () => {
 			// Create global hooks directory
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
+			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
 
-			// Mock getAllHooksDirs to include our test global directory
-			const diskModule = require("../../storage/disk")
-			originalGetAllHooksDirs = diskModule.getAllHooksDirs
-			sandbox.stub(diskModule, "getAllHooksDirs").callsFake(async () => {
-				const workspaceDirs = await originalGetAllHooksDirs()
-				return [globalHooksDir, ...workspaceDirs]
-			})
+			// Use deterministic hook directories to avoid test flakiness.
+			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
 		it("should execute both global and workspace TaskStart hooks", async () => {
@@ -347,7 +299,7 @@ console.log(JSON.stringify({
 			await writeHookScript(globalHookPath, globalHookScript)
 
 			// Create workspace hook
-			const workspaceHookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -370,8 +322,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/GLOBAL: Task starting/)
-			result.contextModification!.should.match(/WORKSPACE: Task starting/)
+			result.contextModification?.should.match(/GLOBAL: Task starting/)
+			result.contextModification?.should.match(/WORKSPACE: Task starting/)
 		})
 
 		it("should block if global hook blocks", async () => {
@@ -384,7 +336,7 @@ console.log(JSON.stringify({
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
 
-			const workspaceHookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -407,7 +359,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Global policy blocks this task/)
+			result.errorMessage?.should.match(/Global policy blocks this task/)
 		})
 
 		it("should block if workspace hook blocks even when global allows", async () => {
@@ -420,7 +372,7 @@ console.log(JSON.stringify({
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
 
-			const workspaceHookPath = path.join(tempDir, ".hairules", "hooks", "TaskStart")
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: true,
@@ -443,7 +395,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Workspace blocks/)
+			result.errorMessage?.should.match(/Workspace blocks/)
 		})
 	})
 
@@ -486,7 +438,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TaskStart hook executed successfully")
+			result.contextModification?.should.equal("TaskStart hook executed successfully")
 		})
 
 		it("should work with blocking fixture", async () => {
@@ -507,7 +459,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Task execution blocked by hook")
+			result.errorMessage?.should.equal("Task execution blocked by hook")
 		})
 
 		it("should work with error fixture", async () => {
