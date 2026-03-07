@@ -684,6 +684,14 @@ export class Task {
 			await this.postStateToWebview()
 		}
 
+		// Notification hook marks that Cline is waiting for user input.
+		await this.runNotificationHook({
+			event: "user_attention",
+			source: type,
+			message: text || "",
+			waitingForUserInput: true,
+		})
+
 		await pWaitFor(() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs, {
 			interval: 100,
 		})
@@ -701,6 +709,35 @@ export class Task {
 		this.taskState.askResponseImages = undefined
 		this.taskState.askResponseFiles = undefined
 		return result
+	}
+
+	private async runNotificationHook(notification: {
+		event: string
+		source: string
+		message: string
+		waitingForUserInput: boolean
+	}): Promise<void> {
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
+		if (!hooksEnabled) {
+			return
+		}
+
+		try {
+			await executeHook({
+				hookName: "Notification",
+				hookInput: {
+					notification,
+				},
+				isCancellable: false,
+				say: async () => undefined,
+				messageStateHandler: this.messageStateHandler,
+				taskId: this.taskId,
+				hooksEnabled,
+				model: getHookModelContext(this.api, this.stateManager),
+			})
+		} catch (error) {
+			Logger.error("[Notification Hook] Failed (non-fatal):", error)
+		}
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) {
@@ -894,7 +931,7 @@ export class Task {
 		userContent: ClineContent[],
 		_context: "initial_task" | "resume" | "feedback",
 	): Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }> {
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 
 		if (!hooksEnabled) {
 			return {}
@@ -981,7 +1018,7 @@ export class Task {
 		}
 
 		// Add TaskStart hook context to the conversation if provided
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (hooksEnabled) {
 			const taskStartResult = await executeHook({
 				hookName: "TaskStart",
@@ -1130,7 +1167,7 @@ export class Task {
 		const newUserContent: ClineContent[] = []
 
 		// Run TaskResume hook AFTER user clicks resume button
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (hooksEnabled) {
 			const clineMessages = this.messageStateHandler.getClineMessages()
 			const taskResumeResult = await executeHook({
@@ -1455,7 +1492,7 @@ export class Task {
 			// PHASE 4: Run TaskCancel hook
 			// This allows the hook UI to appear in the webview
 			// Use the shouldRunTaskCancelHook value we captured in Phase 1
-			const hooksEnabled = getHooksEnabledSafe()
+			const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 			if (hooksEnabled && shouldRunTaskCancelHook) {
 				try {
 					await executeHook({
@@ -1688,7 +1725,7 @@ export class Task {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
 		// Run PreCompact hook before truncation
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (hooksEnabled) {
 			try {
 				// Calculate what the new deleted range will be
@@ -1716,7 +1753,7 @@ export class Task {
 					postStateToWebview: this.postStateToWebview.bind(this),
 					taskState: this.taskState,
 					cancelTask: this.cancelTask.bind(this),
-					hooksEnabled: true,
+					hooksEnabled,
 				})
 			} catch (error) {
 				// If hook was cancelled, re-throw to stop compaction
