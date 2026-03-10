@@ -2587,7 +2587,11 @@ export class Task {
 				})
 			}
 
-			const queueUsageChunkSideEffects = (usageInputTokens: number, usageOutputTokens: number) => {
+			const queueUsageChunkSideEffects = (
+				usageInputTokens: number,
+				usageOutputTokens: number,
+				chunkOptions?: { cacheWriteTokens?: number; cacheReadTokens?: number; totalCost?: number },
+			) => {
 				usageChunkSideEffectsQueue = usageChunkSideEffectsQueue
 					// This executes immediately after enqueue (microtask if already resolved), not at stream end.
 					.then(async () => {
@@ -2597,7 +2601,13 @@ export class Task {
 
 						await updateApiReqMsgFromMetrics()
 						await this.postStateToWebview()
-						await telemetryService.captureTokenUsage(this.ulid, usageInputTokens, usageOutputTokens, model.id)
+						await telemetryService.captureTokenUsage(
+							this.ulid,
+							usageInputTokens,
+							usageOutputTokens,
+							model.id,
+							chunkOptions,
+						)
 					})
 					.catch((error) => {
 						Logger.debug(`[Task ${this.taskId}] Failed to process usage chunk side effects: ${error}`)
@@ -2733,7 +2743,11 @@ export class Task {
 						taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
 						taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
 						taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
-						queueUsageChunkSideEffects(chunk.inputTokens, chunk.outputTokens)
+						queueUsageChunkSideEffects(chunk.inputTokens, chunk.outputTokens, {
+							cacheWriteTokens: chunk.cacheWriteTokens,
+							cacheReadTokens: chunk.cacheReadTokens,
+							totalCost: chunk.totalCost,
+						})
 					},
 				})
 
@@ -2947,7 +2961,11 @@ export class Task {
 					taskMetrics.cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
 					taskMetrics.cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
 					taskMetrics.totalCost = apiStreamUsage.totalCost ?? taskMetrics.totalCost
-					queueUsageChunkSideEffects(apiStreamUsage.inputTokens, apiStreamUsage.outputTokens)
+					queueUsageChunkSideEffects(apiStreamUsage.inputTokens, apiStreamUsage.outputTokens, {
+						cacheWriteTokens: apiStreamUsage.cacheWriteTokens,
+						cacheReadTokens: apiStreamUsage.cacheReadTokens,
+						totalCost: apiStreamUsage.totalCost,
+					})
 				}
 			}
 
