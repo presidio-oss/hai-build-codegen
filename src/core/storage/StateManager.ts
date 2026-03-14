@@ -925,7 +925,10 @@ export class StateManager {
 		// Build API handler settings object with task override support
 		const settings = Object.fromEntries(ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]))
 
-		return { ...secrets, ...settings } satisfies ApiConfiguration
+		return {
+			...secrets,
+			...settings,
+		} satisfies ApiConfiguration
 	}
 
 	/**
