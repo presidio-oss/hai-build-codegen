@@ -391,7 +391,7 @@ function onUnhandledException(reason: unknown, context: string) {
 	const finalError = reason instanceof Error ? reason : new Error(String(reason))
 
 	restoreConsole()
-	console.error(finalError)
+	Logger.error("Unhandled exception after console restore", finalError)
 
 	setTimeout(() => process.exit(1), EXIT_TIMEOUT_MS)
 

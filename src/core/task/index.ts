@@ -2674,7 +2674,13 @@ export class Task {
 					modelInfo.modelId,
 					"assistant",
 					modelInfo.mode,
-					undefined,
+					{
+						tokensIn: taskMetrics.inputTokens,
+						tokensOut: taskMetrics.outputTokens,
+						cacheWriteTokens: taskMetrics.cacheWriteTokens,
+						cacheReadTokens: taskMetrics.cacheReadTokens,
+						totalCost: taskMetrics.totalCost,
+					},
 					this.useNativeToolCalls, // For assistant turn only.
 				)
 
@@ -2989,7 +2995,13 @@ export class Task {
 					model.id,
 					"assistant",
 					modelInfo.mode,
-					undefined,
+					{
+						tokensIn: taskMetrics.inputTokens,
+						tokensOut: taskMetrics.outputTokens,
+						cacheWriteTokens: taskMetrics.cacheWriteTokens,
+						cacheReadTokens: taskMetrics.cacheReadTokens,
+						totalCost: taskMetrics.totalCost,
+					},
 					this.useNativeToolCalls,
 				)
 

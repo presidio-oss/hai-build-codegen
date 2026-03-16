@@ -74,6 +74,8 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 	const sandbox = sinon.createSandbox()
 	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
 	const hooksDir = await createHooksDirectory(tempDir)
+	const legacyHooksDir = path.join(tempDir, ".clinerules", "hooks")
+	await fs.mkdir(legacyHooksDir, { recursive: true })
 
 	sandbox.stub(StateManager, "get").returns({
 		getGlobalStateKey: (key: string) => {
@@ -88,7 +90,7 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 	} as any)
 
 	resetHookCache()
-	stubHookDirs(sandbox, [hooksDir])
+	stubHookDirs(sandbox, [legacyHooksDir, hooksDir])
 
 	return {
 		tempDir,
@@ -185,6 +187,8 @@ export async function createTestHook(
  * - Windows: writes `<HookName>.ps1` + `<HookName>.js` companion script
  */
 export async function writeHookScriptForPlatform(hookPath: string, nodeScript: string): Promise<void> {
+	await fs.mkdir(path.dirname(hookPath), { recursive: true })
+
 	if (process.platform === "win32") {
 		const jsPath = `${hookPath}.js`
 		const ps1Path = `${hookPath}.ps1`

@@ -74,7 +74,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		// Check clineignore access before performing any IO.
 		// Increment the counter so repeated attempts at blocked paths
 		// accumulate toward the yolo-mode mistake limit.
-		const accessValidation = this.validator.checkClineIgnorePath(relDirPath!)
+		const accessValidation = this.validator.checkHAIIgnorePath(relDirPath!)
 		if (!accessValidation.ok) {
 			config.taskState.consecutiveMistakeCount++
 			if (!config.isSubagentExecution) {

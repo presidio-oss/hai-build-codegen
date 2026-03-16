@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Controller } from "@/core/controller"
 import { refreshSkills } from "@/core/controller/file/refreshSkills"
 import { toggleSkill } from "@/core/controller/file/toggleSkill"
+import { Logger } from "@/shared/services/Logger"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -58,8 +59,12 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	// Build flat list of skills with source info (global first, then local, alphabetical within each)
 	const skillEntries = useMemo(() => {
 		const entries: { skill: SkillInfo; isGlobal: boolean }[] = []
-		globalSkills.forEach((skill) => entries.push({ skill, isGlobal: true }))
-		localSkills.forEach((skill) => entries.push({ skill, isGlobal: false }))
+		globalSkills.forEach((skill) => {
+			entries.push({ skill, isGlobal: true })
+		})
+		localSkills.forEach((skill) => {
+			entries.push({ skill, isGlobal: false })
+		})
 		return entries.sort((a, b) => {
 			if (a.isGlobal !== b.isGlobal) return a.isGlobal ? -1 : 1
 			return a.skill.name.localeCompare(b.skill.name)
@@ -113,7 +118,7 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 		exec(command, (err) => {
 			if (err) {
 				// Fallback: show URL in terminal if browser open fails
-				console.error(`Visit: ${SKILLS_MARKETPLACE_URL}`)
+				Logger.error(`Failed to open skills marketplace. Visit: ${SKILLS_MARKETPLACE_URL}`, err)
 			}
 		})
 	}, [])

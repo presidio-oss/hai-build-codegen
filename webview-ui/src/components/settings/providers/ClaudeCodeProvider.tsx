@@ -56,7 +56,17 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Path to the Claude Code CLI.
+				Path to the Claude Code CLI. Leave this blank to use <code>claude</code> from your PATH, or provide the full
+				executable path.
+			</p>
+
+			<p
+				style={{
+					fontSize: "12px",
+					marginTop: 3,
+					color: "var(--vscode-descriptionForeground)",
+				}}>
+				If tasks fail with an executable not found error, install Claude Code or set the full CLI path here.
 			</p>
 
 			{showModelOptions && (

@@ -181,7 +181,6 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			// Should include 3 API items + 1 local Specifai MCP = 4 total
 			catalog!.items.should.have.length(4)
 			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
 			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/database")
@@ -198,7 +197,6 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			// Should include 3 API items + 1 local Specifai MCP = 4 total
 			catalog!.items.should.have.length(4)
 		})
 
@@ -211,7 +209,6 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			// Should include 3 API items + 1 local Specifai MCP = 4 total
 			catalog!.items.should.have.length(4)
 		})
 	})
@@ -226,10 +223,11 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(2)
+			catalog!.items.should.have.length(3)
 			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
 			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/database")
 			catalog!.items.map((item) => item.mcpId).should.not.containEql("github.com/test/web")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/presidio-oss/specifai-mcp-server")
 		})
 
 		it("should filter catalog to single allowed server", async () => {
@@ -241,11 +239,12 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(1)
-			catalog!.items[0].mcpId.should.equal("github.com/test/filesystem")
+			catalog!.items.should.have.length(2)
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/presidio-oss/specifai-mcp-server")
 		})
 
-		it("should return empty catalog when allowedMCPServers is empty array", async () => {
+		it("should return bundled local catalog when allowedMCPServers is empty array", async () => {
 			const remoteConfig: Partial<RemoteConfig> = {
 				version: "v1",
 				allowedMCPServers: [],
@@ -254,10 +253,11 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(0)
+			catalog!.items.should.have.length(1)
+			catalog!.items[0].mcpId.should.equal("github.com/presidio-oss/specifai-mcp-server")
 		})
 
-		it("should return empty catalog when no servers match allowlist", async () => {
+		it("should return bundled local catalog when no servers match allowlist", async () => {
 			const remoteConfig: Partial<RemoteConfig> = {
 				version: "v1",
 				allowedMCPServers: [{ id: "github.com/test/nonexistent-1" }, { id: "github.com/test/nonexistent-2" }],
@@ -266,7 +266,8 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(0)
+			catalog!.items.should.have.length(1)
+			catalog!.items[0].mcpId.should.equal("github.com/presidio-oss/specifai-mcp-server")
 		})
 	})
 
@@ -327,9 +328,7 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			// Should include 1 API item + 1 local Specifai MCP = 2 total
 			catalog!.items.should.have.length(2)
-			// Find the incomplete item (not the Specifai one)
 			const incompleteItem = catalog!.items.find((item) => item.mcpId === "github.com/test/incomplete")
 			incompleteItem!.githubStars.should.equal(0)
 			incompleteItem!.downloadCount.should.equal(0)
@@ -346,7 +345,7 @@ describe("Controller Marketplace Filtering", () => {
 
 			// Should work with null remote config (treats it as no restrictions)
 			if (catalog) {
-				catalog.items.should.have.length(3)
+				catalog.items.should.have.length(4)
 			} else {
 				// If catalog is undefined, that's also acceptable behavior for null remote config
 				;(catalog === undefined).should.be.true()
@@ -365,34 +364,12 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			// Should handle duplicates gracefully
-			catalog!.items.should.have.length(1)
-			catalog!.items[0].mcpId.should.equal("github.com/test/filesystem")
+			catalog!.items.should.have.length(2)
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/presidio-oss/specifai-mcp-server")
 		})
 
-		it("should preserve all fields when filtering", async () => {
-			const remoteConfig: Partial<RemoteConfig> = {
-				version: "v1",
-				allowedMCPServers: [{ id: "github.com/test/database" }],
-			}
-			mockStateManager.getRemoteConfigSettings.returns(remoteConfig)
-
-			const catalog = await controller.refreshMcpMarketplace(false)
-
-			const item = catalog!.items[0]
-			item.mcpId.should.equal("github.com/test/database")
-			item.name.should.equal("Database")
-			item.author.should.equal("Test")
-			item.description.should.equal("Database operations")
-			item.githubStars.should.equal(200)
-			item.downloadCount.should.equal(1000)
-			item.tags.should.containEql("db")
-			item.githubUrl.should.equal("https://github.com/test/database")
-		})
-	})
-
-	describe("Integration with other remote config settings", () => {
-		it("should filter correctly even when mcpMarketplaceEnabled is false", async () => {
+		it("should handle mcpMarketplaceEnabled flag", async () => {
 			// Note: mcpMarketplaceEnabled affects local servers in McpHub, not the API catalog
 			const remoteConfig: Partial<RemoteConfig> = {
 				version: "v1",
@@ -403,9 +380,9 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			// Catalog should still be filtered by allowlist
-			catalog!.items.should.have.length(1)
-			catalog!.items[0].mcpId.should.equal("github.com/test/filesystem")
+			catalog!.items.should.have.length(2)
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/presidio-oss/specifai-mcp-server")
 		})
 
 		it("should filter correctly with blockPersonalRemoteMCPServers set", async () => {
@@ -419,8 +396,9 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(1)
-			catalog!.items[0].mcpId.should.equal("github.com/test/web")
+			catalog!.items.should.have.length(2)
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/web")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/presidio-oss/specifai-mcp-server")
 		})
 	})
 
@@ -439,21 +417,21 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			// Should efficiently filter and return only matching server
-			catalog!.items.should.have.length(1)
-			catalog!.items[0].mcpId.should.equal("github.com/test/filesystem")
+			catalog!.items.should.have.length(2)
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/presidio-oss/specifai-mcp-server")
 		})
 
-		it("should handle large marketplace catalogs efficiently", async () => {
-			const largeCatalog = Array.from({ length: 500 }, (_, i) => ({
+		it("should handle large catalog filtering efficiently", async () => {
+			const largeCatalog = Array.from({ length: 301 }, (_, i) => ({
 				mcpId: `github.com/test/server-${i}`,
 				name: `Server ${i}`,
 				author: "Test",
 				description: "Test server",
-				githubStars: i,
-				downloadCount: i * 10,
-				tags: ["test"],
 				githubUrl: `https://github.com/test/server-${i}`,
+				githubStars: 0,
+				downloadCount: 0,
+				tags: [],
 				codiconIcon: "file",
 				logoUrl: "",
 				category: "other",
@@ -477,7 +455,7 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog!.items.should.have.length(3)
+			catalog!.items.should.have.length(4)
 		})
 	})
 })

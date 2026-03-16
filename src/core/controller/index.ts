@@ -33,13 +33,14 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { telemetryService } from "@/services/telemetry"
+import { getTelemetryService, resetTelemetryService, telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getLatestAnnouncementId } from "@/utils/announcements"
+import { getAllLocalMcps } from "@/utils/local-mcp-registry"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
@@ -364,6 +365,18 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
+	async updateTelemetryConfig() {
+		try {
+			resetTelemetryService()
+			const telemetry = await getTelemetryService()
+			const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
+			await telemetry.updateTelemetryState(telemetrySetting !== "disabled")
+			Logger.log("[Controller] Telemetry providers reloaded from .hai.config")
+		} catch (error) {
+			Logger.error("[Controller] Failed to reload telemetry providers from .hai.config", error)
+		}
+	}
+
 	async toggleActModeForYoloMode(): Promise<boolean> {
 		const modeToSwitchTo: Mode = "act"
 
@@ -659,11 +672,22 @@ export class Controller {
 			tags: item.tags ?? [],
 		}))
 
+		const localItems: McpMarketplaceItem[] = Object.values(getAllLocalMcps()).map((item) => ({
+			...item,
+			createdAt: "1970-01-01T00:00:00Z",
+			updatedAt: "1970-01-01T00:00:00Z",
+			lastGithubSync: "1970-01-01T00:00:00Z",
+			isLocal: true,
+		}))
+
 		// Filter by allowlist if configured
 		if (allowedMCPServers) {
 			const allowedIds = new Set(allowedMCPServers.map((server) => server.id))
 			items = items.filter((item: McpMarketplaceItem) => allowedIds.has(item.mcpId))
 		}
+
+		const mergedItems = [...localItems, ...items]
+		items = mergedItems.filter((item, index, allItems) => index === allItems.findIndex((other) => other.mcpId === item.mcpId))
 
 		const catalog: McpMarketplaceCatalog = { items }
 
@@ -844,7 +868,7 @@ export class Controller {
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Get API configuration from cache for immediate access
-		const onboardingModels = getClineOnboardingModels()
+		const onboardingModels = featureFlagsService.getOnboardingOverrides() ? getClineOnboardingModels() : undefined
 		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")

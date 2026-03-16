@@ -710,7 +710,7 @@ export const ChatRowContent = memo(
 						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<LightbulbIcon className="size-2" />
-								<span className="font-bold">Cline loaded the skill:</span>
+								<span className="font-bold">HAI loaded the skill:</span>
 							</div>
 							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-[9px] px-2.5">
 								<span className="ph-no-capture font-medium">{tool.path}</span>
