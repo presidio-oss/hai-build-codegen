@@ -1,6 +1,6 @@
 // Map providers to their specific model ID keys
 
-import { SettingsKey } from "@shared/storage/state-keys"
+import { Secrets, SettingsKey } from "@shared/storage/state-keys"
 import {
 	ApiProvider,
 	anthropicDefaultModelId,
@@ -21,13 +21,13 @@ import {
 	openRouterDefaultModelId,
 	requestyDefaultModelId,
 	sapAiCoreDefaultModelId,
+	wandbDefaultModelId,
 	xaiDefaultModelId,
 } from "../api"
 
-// Note: "cline" provider uses the same model ID key as "openrouter"
 const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	openrouter: "OpenRouterModelId",
-	cline: "OpenRouterModelId", // Cline provider uses OpenRouter model IDs
+	cline: "ClineModelId",
 	openai: "OpenAiModelId",
 	ollama: "OllamaModelId",
 	lmstudio: "LmStudioModelId",
@@ -47,7 +47,7 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	"vercel-ai-gateway": "VercelAiGatewayModelId",
 } as const
 
-export const ProviderToApiKeyMap: Partial<Record<ApiProvider, string | string[]>> = {
+export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (keyof Secrets)[]>> = {
 	cline: ["clineApiKey", "clineAccountId"],
 	anthropic: "apiKey",
 	openrouter: "openRouterApiKey",
@@ -84,6 +84,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, string | string[]>
 	hicap: "hicapApiKey",
 	nousResearch: "nousResearchApiKey",
 	sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
+	wandb: "wandbApiKey",
 } as const
 
 const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
@@ -114,6 +115,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	moonshot: moonshotDefaultModelId,
 	qwen: internationalQwenDefaultModelId,
 	deepseek: deepSeekDefaultModelId,
+	wandb: wandbDefaultModelId,
 } as const
 
 /**

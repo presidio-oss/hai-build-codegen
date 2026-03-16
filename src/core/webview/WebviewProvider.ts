@@ -1,9 +1,9 @@
+import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { Controller } from "@core/controller/index"
 import axios from "axios"
-import { readFile } from "fs/promises"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
+import { ClineExtensionContext } from "@/shared/cline"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getNonce } from "./getNonce"
@@ -12,7 +12,7 @@ export abstract class WebviewProvider {
 	private static instance: WebviewProvider | null = null
 	controller: Controller
 
-	constructor(readonly context: vscode.ExtensionContext) {
+	constructor(readonly context: ClineExtensionContext) {
 		WebviewProvider.instance = this
 
 		// Create controller with cache service
@@ -140,7 +140,7 @@ export abstract class WebviewProvider {
 
 		return readFile(portFilePath, "utf8")
 			.then((portFile) => {
-				const port = parseInt(portFile.trim()) || DEFAULT_PORT
+				const port = Number.parseInt(portFile.trim()) || DEFAULT_PORT
 				Logger.info(`[getDevServerPort] Using dev server port ${port} from .vite-port file`)
 
 				return port
@@ -167,13 +167,14 @@ export abstract class WebviewProvider {
 		// Check if local dev server is running.
 		try {
 			await axios.get(`http://${localServerUrl}`)
-		} catch (_error) {
+		} catch (error) {
+			Logger.warn(`[getHMRHtmlContent] Local webview dev server check failed at http://${localServerUrl}`, error)
 			// Only show the error message when in development mode.
 			if (process.env.IS_DEV) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message:
-						"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+						"HAI: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
 				})
 			}
 

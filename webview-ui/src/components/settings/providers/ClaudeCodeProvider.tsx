@@ -13,6 +13,7 @@ const SUPPORTED_CLAUDE_CODE_THINKING_MODELS = [
 	...SUPPORTED_ANTHROPIC_THINKING_MODELS,
 	"sonnet",
 	"sonnet[1m]",
+	"claude-sonnet-4-6[1m]",
 	"claude-sonnet-4-5-20250929[1m]",
 	"claude-opus-4-6[1m]",
 	"opus",
@@ -55,7 +56,17 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Path to the Claude Code CLI.
+				Path to the Claude Code CLI. Leave this blank to use <code>claude</code> from your PATH, or provide the full
+				executable path.
+			</p>
+
+			<p
+				style={{
+					fontSize: "12px",
+					marginTop: 3,
+					color: "var(--vscode-descriptionForeground)",
+				}}>
+				If tasks fail with an executable not found error, install Claude Code or set the full CLI path here.
 			</p>
 
 			{showModelOptions && (

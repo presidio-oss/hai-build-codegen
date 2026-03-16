@@ -13,9 +13,11 @@
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
 				"--disable-extension",
-				"presidio-inc.hai-build-code-generator", // Avoid conflicts with installed Cline
+				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
-				"${workspaceFolder}"
+				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
+				"${workspaceFolder}",
+				"--disable-extensions"
 			],
 			"outFiles": [
 				"${workspaceFolder}/dist/**/*.js"
@@ -36,8 +38,9 @@
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
 				"--disable-extension",
-				"presidio-inc.hai-build-code-generator", // Avoid conflicts with installed Cline
+				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
+				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -59,8 +62,9 @@
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
 				"--disable-extension",
-				"presidio-inc.hai-build-code-generator", // Avoid conflicts with installed Cline
+				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
+				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -84,8 +88,9 @@
 				"--profile-temp",
 				"--sync=off",
 				"--disable-extension",
-				"presidio-inc.hai-build-code-generator", // Avoid conflicts with installed Cline
+				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
+				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"${workspaceFolder}"
 			],

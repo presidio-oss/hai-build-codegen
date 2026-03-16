@@ -218,13 +218,13 @@ export function getConfiguredProviders(
 	// VSCode LM - always potentially available
 	configured.push("vscode-lm")
 
-	// Claude Code - requires path
-	if (apiConfiguration.claudeCodePath) {
+	// Claude Code - can use an explicit path or the default `claude` executable from PATH
+	if (apiConfiguration.claudeCodePath !== undefined) {
 		configured.push("claude-code")
 	}
 
-	// Qwen Code - requires API key (same as Qwen)
-	if (apiConfiguration.qwenApiKey) {
+	// Qwen Code - can use an explicit OAuth credentials path or the default credentials location
+	if (apiConfiguration.qwenCodeOauthPath !== undefined || apiConfiguration.qwenApiKey) {
 		configured.push("qwen-code")
 	}
 

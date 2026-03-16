@@ -710,7 +710,7 @@ export const ChatRowContent = memo(
 						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<LightbulbIcon className="size-2" />
-								<span className="font-bold">Cline loaded the skill:</span>
+								<span className="font-bold">HAI loaded the skill:</span>
 							</div>
 							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-[9px] px-2.5">
 								<span className="ph-no-capture font-medium">{tool.path}</span>
@@ -894,8 +894,8 @@ export const ChatRowContent = memo(
 								onToggle={isReasoningStreaming ? undefined : handleToggle}
 								reasoningContent={message.text}
 								showChevron={!isReasoningStreaming || hasReasoningText}
-								title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 								showTitle={true}
+								title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 							/>
 						)
 					}
@@ -1053,7 +1053,7 @@ export const ChatRowContent = memo(
 									{errorMessage && (
 										<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere text-xs">{errorMessage}</p>
 									)}
-									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px]">
+									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px] p-3">
 										<div className="flex items-center mb-1">
 											{isFailed && !isRequestInProgress ? (
 												<TriangleAlertIcon className="mr-2 size-2" />

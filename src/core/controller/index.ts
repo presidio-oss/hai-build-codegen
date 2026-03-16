@@ -13,7 +13,7 @@ import type { ChatContent } from "@shared/ChatContent"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog, McpMarketplaceItem } from "@shared/mcp"
-import type { Settings } from "@shared/storage/state-keys"
+import { type Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
@@ -23,7 +23,6 @@ import fs from "fs/promises"
 import open from "open"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-import type * as vscode from "vscode"
 import { ClineEnv } from "@/config"
 import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { HostProvider } from "@/hosts/host-provider"
@@ -34,12 +33,14 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { telemetryService } from "@/services/telemetry"
+import { getTelemetryService, resetTelemetryService, telemetryService } from "@/services/telemetry"
+import { ClineExtensionContext } from "@/shared/cline"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getLatestAnnouncementId } from "@/utils/announcements"
+import { getAllLocalMcps } from "@/utils/local-mcp-registry"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
@@ -117,23 +118,7 @@ export class Controller {
 		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 3600000) // 1 hour
 	}
 
-	/**
-	 * Trigger a refresh of telemetry configuration when workspace config changes.
-	 * Minimal implementation: re-evaluates current opt-in state and notifies telemetry service.
-	 */
-	public async updateTelemetryConfig(): Promise<void> {
-		try {
-			const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
-			const isOptedIn = telemetrySetting !== "disabled"
-			void telemetryService
-				.updateTelemetryState(isOptedIn)
-				.catch((err) => Logger.error("[Controller] Failed to update telemetry state:", err))
-		} catch (err) {
-			Logger.error("[Controller] updateTelemetryConfig error:", err)
-		}
-	}
-
-	constructor(readonly context: vscode.ExtensionContext) {
+	constructor(readonly context: ClineExtensionContext) {
 		Session.reset() // Reset session on controller initialization
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		this.stateManager = StateManager.get()
@@ -378,6 +363,18 @@ export class Controller {
 		}
 
 		await this.postStateToWebview()
+	}
+
+	async updateTelemetryConfig() {
+		try {
+			resetTelemetryService()
+			const telemetry = await getTelemetryService()
+			const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
+			await telemetry.updateTelemetryState(telemetrySetting !== "disabled")
+			Logger.log("[Controller] Telemetry providers reloaded from .hai.config")
+		} catch (error) {
+			Logger.error("[Controller] Failed to reload telemetry providers from .hai.config", error)
+		}
 	}
 
 	async toggleActModeForYoloMode(): Promise<boolean> {
@@ -675,25 +672,22 @@ export class Controller {
 			tags: item.tags ?? [],
 		}))
 
-		// Add local MCPs (like Specifai) to the marketplace catalog
-		const { getAllLocalMcps } = await import("@/utils/local-mcp-registry")
-		const localMcps = getAllLocalMcps()
-		const now = new Date().toISOString()
-		for (const localMcp of Object.values(localMcps)) {
-			items.push({
-				...localMcp,
-				createdAt: now,
-				updatedAt: now,
-				lastGithubSync: now,
-				isLocal: true,
-			} as McpMarketplaceItem)
-		}
+		const localItems: McpMarketplaceItem[] = Object.values(getAllLocalMcps()).map((item) => ({
+			...item,
+			createdAt: "1970-01-01T00:00:00Z",
+			updatedAt: "1970-01-01T00:00:00Z",
+			lastGithubSync: "1970-01-01T00:00:00Z",
+			isLocal: true,
+		}))
 
 		// Filter by allowlist if configured
 		if (allowedMCPServers) {
 			const allowedIds = new Set(allowedMCPServers.map((server) => server.id))
 			items = items.filter((item: McpMarketplaceItem) => allowedIds.has(item.mcpId))
 		}
+
+		const mergedItems = [...localItems, ...items]
+		items = mergedItems.filter((item, index, allItems) => index === allItems.findIndex((other) => other.mcpId === item.mcpId))
 
 		const catalog: McpMarketplaceCatalog = { items }
 
@@ -874,14 +868,13 @@ export class Controller {
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Get API configuration from cache for immediate access
-		const onboardingModels = getClineOnboardingModels()
+		const onboardingModels = featureFlagsService.getOnboardingOverrides() ? getClineOnboardingModels() : undefined
 		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
-		const dictationSettings = this.stateManager.getGlobalSettingsKey("dictationSettings")
 		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
@@ -924,7 +917,6 @@ export class Controller {
 		const localCursorRulesToggles = this.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 		const localAgentsRulesToggles = this.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
 		const workflowToggles = this.stateManager.getWorkspaceStateKey("workflowToggles")
-		const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold")
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
 		// Spread to create new array reference - React needs this to detect changes in useEffect dependencies
@@ -944,16 +936,11 @@ export class Controller {
 		const clineConfig = ClineEnv.config()
 		const environment = clineConfig.environment
 		const banners = BannerService.get().getActiveBanners() ?? []
+		const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
 
 		// Check OpenAI Codex authentication status
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
 		const openAiCodexIsAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
-
-		// Set feature flag in dictation settings based on platform
-		const updatedDictationSettings = {
-			...dictationSettings,
-			featureEnabled: process.platform === "darwin" || process.platform === "linux", // Enable dictation on macOS and Linux
-		}
 
 		return {
 			version,
@@ -965,7 +952,6 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			focusChainSettings,
-			dictationSettings: updatedDictationSettings,
 			preferredLanguage,
 			mode,
 			strictPlanModeEnabled,
@@ -1006,7 +992,6 @@ export class Controller {
 			taskHistory: processedTaskHistory,
 			shouldShowAnnouncement,
 			favoritedModelIds,
-			autoCondenseThreshold,
 			backgroundCommandRunning: this.backgroundCommandRunning,
 			backgroundCommandTaskId: this.backgroundCommandTaskId,
 			// NEW: Add workspace information
@@ -1025,7 +1010,7 @@ export class Controller {
 				user: this.stateManager.getGlobalSettingsKey("worktreesEnabled"),
 				featureFlag: featureFlagsService.getWorktreesEnabled(),
 			},
-			hooksEnabled: getHooksEnabledSafe(),
+			hooksEnabled: getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled")),
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
@@ -1037,6 +1022,7 @@ export class Controller {
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 			doubleCheckCompletionEnabled,
 			banners,
+			welcomeBanners,
 			openAiCodexIsAuthenticated,
 		}
 	}

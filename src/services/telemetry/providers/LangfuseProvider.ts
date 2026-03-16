@@ -109,6 +109,19 @@ export class LangfuseProvider implements ITelemetryProvider {
 						cacheReadsPrice: modelConfig?.cacheReadsPrice || 0.08,
 					},
 				} as any)
+			} else {
+				// No cache token data available (e.g. non-caching models like OpenAI, Qwen, etc.)
+				// Fall back to a basic event so the conversation turn still appears in Langfuse
+				this.getClient()?.event({
+					name: event,
+					userId: this.gitUserInfo.username,
+					sessionId: this.distinctId,
+					metadata: {
+						...properties,
+						email: this.gitUserInfo.email,
+						user: this.gitUserInfo.username,
+					},
+				} as any)
 			}
 		} catch (error) {
 			Logger.error("[LangfuseProvider] Failed to log event:", error)
