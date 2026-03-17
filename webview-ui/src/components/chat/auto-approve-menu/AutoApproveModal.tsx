@@ -124,6 +124,9 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 						<span className="text-sm">Enable notifications</span>
 					</VSCodeCheckbox>
 				</div>
+				<div className="mt-1 text-xs text-muted-foreground">
+					Notifications may show abbreviated tool details for safety and privacy.
+				</div>
 			</div>
 		</div>
 	)
