@@ -13,7 +13,7 @@ import { toggleSkill } from "@/core/controller/file/toggleSkill"
 import { Logger } from "@/shared/services/Logger"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
-import { isMouseEscapeSequence } from "../utils/input"
+import { isEnterKey, isMouseEscapeSequence } from "../utils/input"
 import { Panel } from "./Panel"
 
 const SKILLS_MARKETPLACE_URL = "https://skills.sh/"
@@ -148,7 +148,7 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 			}
 
 			// Actions
-			if (key.return) {
+			if (isEnterKey(input, key)) {
 				if (isMarketplaceSelected) {
 					openMarketplace()
 				} else {

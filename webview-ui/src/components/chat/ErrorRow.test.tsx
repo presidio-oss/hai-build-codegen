@@ -64,11 +64,11 @@ describe("ErrorRow", () => {
 		).toBeInTheDocument()
 	})
 
-	it("renders haiignore error", () => {
+	it("renders clineignore error", () => {
 		const clineignoreMessage = { ...mockMessage, text: "/path/to/file.txt" }
 		render(<ErrorRow errorType="clineignore_error" message={clineignoreMessage} />)
 
-		expect(screen.getByText(/HAI tried to access/)).toBeInTheDocument()
+		expect(screen.getByText(/Cline tried to access/)).toBeInTheDocument()
 		expect(screen.getByText("/path/to/file.txt")).toBeInTheDocument()
 	})
 
@@ -115,7 +115,7 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("Request ID: req_123456")).toBeInTheDocument()
 		})
 
-		it("renders auth error with sign in button when user is not signed in", async () => {
+		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {
 			const mockClineError = {
 				message: "Authentication failed",
 				isErrorType: vi.fn((type) => type === "auth"),
@@ -128,8 +128,9 @@ describe("ErrorRow", () => {
 
 			render(<ErrorRow apiRequestFailedMessage="Authentication failed" errorType="error" message={mockMessage} />)
 
-			expect(screen.getByText("Authentication failed")).toBeInTheDocument()
-			expect(screen.getByText("Sign in to HAI")).toBeInTheDocument()
+			expect(screen.queryByText("Authentication failed")).not.toBeInTheDocument()
+			expect(screen.getByText(/Whoops looks like you're logged out/)).toBeInTheDocument()
+			expect(screen.getByText("Sign in to Cline")).toBeInTheDocument()
 		})
 
 		it("renders PowerShell troubleshooting link when error mentions PowerShell", async () => {
@@ -154,7 +155,7 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("troubleshooting guide")).toBeInTheDocument()
 			expect(screen.getByRole("link", { name: "troubleshooting guide" })).toHaveAttribute(
 				"href",
-				"https://github.com/presidio-oss/hai-build-codegen/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22",
+				"https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22",
 			)
 		})
 
