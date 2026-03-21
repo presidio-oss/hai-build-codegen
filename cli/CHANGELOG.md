@@ -1,5 +1,16 @@
 # cline
 
+## [2.9.0]
+
+### Added
+
+- Latency improvements for remote workspaces
+
+## [2.8.2]
+
+### Fixed
+- Use `kanban@latest` in `cline kanban` to always fetch the newest version
+
 ## [2.8.1]
 
 ### Added
