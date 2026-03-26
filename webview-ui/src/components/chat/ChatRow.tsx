@@ -155,6 +155,7 @@ export const ChatRowContent = memo(
 			onRelinquishControl,
 			vscodeTerminalExecutionMode,
 			clineMessages,
+			showFeatureTips,
 		} = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
@@ -901,7 +902,7 @@ export const ChatRowContent = memo(
 									showTitle={true}
 									title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 								/>
-						{isReasoningStreaming && <FeatureTip />}
+								{isReasoningStreaming && showFeatureTips !== false && <FeatureTip />}
 							</div>
 						)
 					}
