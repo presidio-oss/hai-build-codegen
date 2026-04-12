@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.13.6
+
+### Patch Changes
+
+- 731f89a: merge from cline 3.78.0
+
 ## 3.13.5
 
 ### Patch Changes
