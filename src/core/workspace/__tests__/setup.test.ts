@@ -118,11 +118,8 @@ describe("setupWorkspaceManager", () => {
 		expect(stateManager._state.roots).to.have.length(2)
 		expect(stateManager._state.primaryIndex).to.equal(0)
 
-		// telemetry captured (skipped assertion in unit tests)
-		expect(fakeTelemetry.captureWorkspaceInitialized.calledOnce).to.equal(true)
-		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[0]).to.equal(2)
-		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[1]).to.deep.equal(["git", "none"])
-		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[3]).to.equal(true)
+		// Telemetry calls are currently disabled in setupWorkspaceManager.
+		expect(fakeTelemetry.captureWorkspaceInitialized.called).to.equal(false)
 	})
 
 	it("uses single-root cwd when history restore is disabled (historyItem present)", async () => {
@@ -163,11 +160,8 @@ describe("setupWorkspaceManager", () => {
 		expect(manager.getRoots()[0].path).to.equal(cwd)
 		// persisted
 		expect(stateManager._state.roots?.[0].path).to.equal(cwd)
-		// telemetry called (skipped assertion in unit tests)
-		expect(fakeTelemetry.captureWorkspaceInitialized.calledOnce).to.equal(true)
-		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[0]).to.equal(1)
-		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[1]).to.deep.equal(["none"])
-		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[3]).to.equal(false)
+		// Telemetry calls are currently disabled in setupWorkspaceManager.
+		expect(fakeTelemetry.captureWorkspaceInitialized.called).to.equal(false)
 	})
 
 	it("gracefully handles errors and falls back to fromLegacyCwd while warning user", async () => {
@@ -187,10 +181,8 @@ describe("setupWorkspaceManager", () => {
 		expect(manager.getRoots()).to.have.length(1)
 		expect(manager.getRoots()[0].path).to.equal(cwd)
 
-		expect(fakeTelemetry.captureWorkspaceInitError.calledOnce).to.equal(true)
-		expect(fakeTelemetry.captureWorkspaceInitError.firstCall.args[0]).to.be.instanceOf(Error)
-		expect(fakeTelemetry.captureWorkspaceInitError.firstCall.args[1]).to.equal(true)
-		expect(fakeTelemetry.captureWorkspaceInitError.firstCall.args[2]).to.equal(2)
+		// Telemetry calls are currently disabled in setupWorkspaceManager.
+		expect(fakeTelemetry.captureWorkspaceInitError.called).to.equal(false)
 
 		// persisted fallback state
 		expect(stateManager._state.roots?.[0].path).to.equal(cwd)

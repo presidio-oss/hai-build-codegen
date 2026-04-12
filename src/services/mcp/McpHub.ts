@@ -274,6 +274,8 @@ export class McpHub {
 	}
 
 	private async initializeMcpServers(): Promise<void> {
+		// Ensure the MCP servers directory exists on startup (creates ~/Documents/HAI/MCP)
+		await this.getMcpServersPath()
 		const settings = await this.readAndValidateMcpSettingsFile()
 		if (settings) {
 			await this.updateServerConnections(settings.mcpServers)

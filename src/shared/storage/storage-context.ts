@@ -31,7 +31,7 @@ export interface StorageContext {
 	/** Workspace-scoped state — per-project toggles, rules, etc. */
 	readonly workspaceState: ClineFileStorage
 
-	/** The resolved path to the data directory (~/.cline/data) */
+	/** The resolved path to the data directory (~/HAI/data) */
 	readonly dataDir: string
 
 	/** The resolved path to the workspace storage directory (contains workspaceState.json) */
@@ -40,7 +40,7 @@ export interface StorageContext {
 
 export interface StorageContextOptions {
 	/**
-	 * Override the Cline home directory. Defaults to CLINE_DIR env var or ~/.cline.
+	 * Override the Cline home directory. Defaults to CLINE_DIR env var or ~/HAI.
 	 */
 	clineDir?: string
 
@@ -84,15 +84,15 @@ function hashString(str: string): string {
  * construct paths to these storage files themselves.
  *
  * File layout:
- *   ~/.cline/data/globalState.json    — global state
- *   ~/.cline/data/secrets.json        — secrets (mode 0o600)
- *   ~/.cline/data/workspaces/<hash>/workspaceState.json — per-workspace state
+ *   ~/HAI/data/globalState.json    — global state
+ *   ~/HAI/data/secrets.json        — secrets (mode 0o600)
+ *   ~/HAI/data/workspaces/<hash>/workspaceState.json — per-workspace state
  *
  * @param opts Configuration options for path resolution
  * @returns A StorageContext ready for use by StateManager
  */
 export function createStorageContext(opts: StorageContextOptions = {}): StorageContext {
-	const clineDir = opts.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
+	const clineDir = opts.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), "HAI")
 	const dataDir = path.join(clineDir, SETTINGS_SUBFOLDER)
 
 	// Resolve workspace storage directory

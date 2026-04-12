@@ -1,8 +1,10 @@
-import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
+import type { IHaiClineTask, IHaiStory, IHaiTask } from "@shared/hai-task"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useState } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import ClineKanbanLaunchModal, { CLINE_KANBAN_MODAL_DISMISS_ID } from "./components/common/ClineKanbanLaunchModal"
+import { HaiTasksList } from "./components/hai/hai-tasks-list"
 import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import OnboardingView from "./components/onboarding/OnboardingView"
@@ -13,6 +15,8 @@ import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
 import { StateServiceClient, UiServiceClient } from "./services/grpc-client"
+
+const KANBAN_MODAL_ENABLED = false
 
 const AppContent = () => {
 	const {
@@ -27,27 +31,160 @@ const AppContent = () => {
 		showHistory,
 		showAccount,
 		showWorktrees,
+		showHaiTaskList,
 		showAnnouncement,
 		onboardingModels,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
 		closeMcpView,
+		navigateToMcp,
+		navigateToSettings,
+		navigateToChat,
 		navigateToHistory,
+		navigateToHaiTaskList,
 		hideSettings,
 		hideHistory,
 		hideAccount,
 		hideWorktrees,
+		hideHaiTaskList,
 		hideAnnouncement,
 	} = useExtensionState()
 	const [showKanbanModal, setShowKanbanModal] = useState(false)
 	const [hasShownKanbanModal, setHasShownKanbanModal] = useState(false)
+	const [selectedHaiTask, setSelectedHaiTask] = useState<IHaiClineTask | null>(null)
+	const [haiTaskList, setHaiTaskList] = useState<IHaiStory[]>([])
+	const [haiTaskLastUpdatedTs, setHaiTaskLastUpdatedTs] = useState<string | undefined>(undefined)
+	const [haiConfigFolder, setHaiConfigFolder] = useState("")
 
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
+
+	useEffect(() => {
+		const unsubscribeHaiTaskData = UiServiceClient.subscribeToHaiTaskData(EmptyRequest.create({}), {
+			onResponse: (response) => {
+				setHaiTaskList(response.stories || [])
+				setHaiTaskLastUpdatedTs(response.timestamp || undefined)
+				setHaiConfigFolder(response.folderPath || "")
+			},
+			onError: (error) => {
+				console.error("Error in HAI task data subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		return () => {
+			unsubscribeHaiTaskData()
+		}
+	}, [])
+
+	const handleHaiTasksConfigure = useCallback(
+		(loadDefault: boolean) => {
+			UiServiceClient.loadHaiTasks({
+				metadata: {},
+				folderPath: loadDefault ? haiConfigFolder : "",
+				loadDefault,
+			}).catch((error) => {
+				console.error("Failed to load HAI tasks:", error)
+			})
+		},
+		[haiConfigFolder],
+	)
+
+	const handleHaiTaskReset = useCallback(() => {
+		UiServiceClient.resetHaiTasks(EmptyRequest.create({}))
+			.then(() => {
+				setHaiTaskList([])
+				setHaiTaskLastUpdatedTs(undefined)
+				setSelectedHaiTask(null)
+			})
+			.catch((error) => {
+				console.error("Failed to reset HAI tasks:", error)
+			})
+	}, [])
+
+	const handleHaiTaskSelect = useCallback(
+		(task: IHaiClineTask) => {
+			setSelectedHaiTask(task)
+			hideHaiTaskList()
+		},
+		[hideHaiTaskList],
+	)
+
+	const handleHaiTaskClick = useCallback((_task: IHaiTask) => {
+		// Reserved for detailed HAI task view.
+	}, [])
+
+	const handleHaiStoryClick = useCallback((_story: IHaiStory) => {
+		// Reserved for detailed HAI story view.
+	}, [])
+
+	useEffect(() => {
+		const emptyRequest = EmptyRequest.create({})
+
+		const unsubscribeChat = UiServiceClient.subscribeToChatButtonClicked(emptyRequest, {
+			onResponse: () => {
+				setSelectedHaiTask(null)
+				navigateToChat()
+			},
+			onError: (error) => {
+				console.error("Error in chat button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		const unsubscribeMcp = UiServiceClient.subscribeToMcpButtonClicked(emptyRequest, {
+			onResponse: () => {
+				navigateToMcp()
+			},
+			onError: (error) => {
+				console.error("Error in MCP button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		const unsubscribeHistory = UiServiceClient.subscribeToHistoryButtonClicked(emptyRequest, {
+			onResponse: () => {
+				navigateToHistory()
+			},
+			onError: (error) => {
+				console.error("Error in history button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		const unsubscribeTaskList = UiServiceClient.subscribeToHaiBuildTaskListClicked(emptyRequest, {
+			onResponse: () => {
+				setSelectedHaiTask(null)
+				navigateToHaiTaskList()
+			},
+			onError: (error) => {
+				console.error("Error in HAI task list button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		const unsubscribeSettings = UiServiceClient.subscribeToSettingsButtonClicked(emptyRequest, {
+			onResponse: () => {
+				navigateToSettings()
+			},
+			onError: (error) => {
+				console.error("Error in settings button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		return () => {
+			unsubscribeChat()
+			unsubscribeMcp()
+			unsubscribeHistory()
+			unsubscribeTaskList()
+			unsubscribeSettings()
+		}
+	}, [navigateToChat, navigateToHistory, navigateToHaiTaskList, navigateToMcp, navigateToSettings])
 
 	const showUpdateAnnouncementModal = useCallback(() => {
 		setShowAnnouncement(true)
 		UiServiceClient.onDidShowAnnouncement({} as EmptyRequest)
-			.then((response: Boolean) => {
+			.then((response) => {
 				setShouldShowAnnouncement(response.value)
 			})
 			.catch((error) => {
@@ -56,6 +193,12 @@ const AppContent = () => {
 	}, [setShouldShowAnnouncement, setShowAnnouncement])
 
 	useEffect(() => {
+		if (!KANBAN_MODAL_ENABLED) {
+			setHasShownKanbanModal(true)
+			setShowKanbanModal(false)
+			return
+		}
+
 		if (!didHydrateState || showWelcome || hasShownKanbanModal) {
 			return
 		}
@@ -68,6 +211,14 @@ const AppContent = () => {
 
 	// Keep update announcements queued until the Kanban modal has either shown and closed or been skipped.
 	useEffect(() => {
+		if (!KANBAN_MODAL_ENABLED) {
+			if (!didHydrateState || showWelcome || !shouldShowAnnouncement || showAnnouncement) {
+				return
+			}
+			showUpdateAnnouncementModal()
+			return
+		}
+
 		if (!didHydrateState || showWelcome || !shouldShowAnnouncement || showAnnouncement) {
 			return
 		}
@@ -105,7 +256,19 @@ const AppContent = () => {
 
 	return (
 		<div className="flex h-screen w-full flex-col">
-			<ClineKanbanLaunchModal onClose={handleCloseKanbanModal} open={showKanbanModal} />
+			{KANBAN_MODAL_ENABLED && <ClineKanbanLaunchModal onClose={handleCloseKanbanModal} open={showKanbanModal} />}
+			{showHaiTaskList && (
+				<HaiTasksList
+					haiTaskLastUpdatedTs={haiTaskLastUpdatedTs}
+					haiTaskList={haiTaskList}
+					onCancel={hideHaiTaskList}
+					onConfigure={handleHaiTasksConfigure}
+					onHaiTaskReset={handleHaiTaskReset}
+					onStoryClick={handleHaiStoryClick}
+					onTaskClick={handleHaiTaskClick}
+					selectedHaiTask={handleHaiTaskSelect}
+				/>
+			)}
 			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
@@ -120,9 +283,13 @@ const AppContent = () => {
 			{showWorktrees && <WorktreesView onDone={hideWorktrees} />}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
+				haiConfigFolder={haiConfigFolder}
 				hideAnnouncement={hideAnnouncement}
 				isHidden={showSettings || showHistory || showMcp || showAccount || showWorktrees}
+				onTaskSelect={setSelectedHaiTask}
+				selectedHaiTask={selectedHaiTask}
 				showAnnouncement={showAnnouncement}
+				showHaiTaskListView={navigateToHaiTaskList}
 				showHistoryView={navigateToHistory}
 			/>
 		</div>

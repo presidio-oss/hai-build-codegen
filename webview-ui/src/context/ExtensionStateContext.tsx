@@ -227,16 +227,20 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [setShowSettings, closeMcpView, setShowHistory, setShowWorktrees, setShowAccount])
 
 	const navigateToWorktrees = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(false)
 		setShowHaiTaskList(false)
-		setShowAccount(true)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowHaiTaskList])
+		setShowWorktrees(true)
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowHaiTaskList, setShowWorktrees])
 
 	const navigateToHaiTaskList = useCallback(() => {
 		setShowSettings(false)
 		closeMcpView()
 		setShowHistory(false)
 		setShowAccount(false)
-		setShowWorktrees(true)
+		setShowWorktrees(false)
 		setShowHaiTaskList(true)
 	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees, setShowHaiTaskList])
 

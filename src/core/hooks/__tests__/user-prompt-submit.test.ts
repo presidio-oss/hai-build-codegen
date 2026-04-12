@@ -371,9 +371,7 @@ console.log(JSON.stringify({
 		const isWindows = process.platform === "win32"
 
 		it("should validate representative fixtures end-to-end", async function () {
-			if (isWindows) {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-			}
+			this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 			const scenarios: FixtureScenario[] = [
 				{

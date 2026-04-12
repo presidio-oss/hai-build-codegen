@@ -99,7 +99,7 @@ export interface CliContextResult {
  * expect the VSCode ExtensionContext shape.
  */
 export function initializeCliContext(config: CliContextConfig = {}): CliContextResult {
-	const CLINE_DIR = config.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
+	const CLINE_DIR = config.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), "HAI")
 
 	// Create the shared StorageContext — this owns all ClineFileStorage instances.
 	// CLI, JetBrains, and VSCode all share this same file-backed implementation.

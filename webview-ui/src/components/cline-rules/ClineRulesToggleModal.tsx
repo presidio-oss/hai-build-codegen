@@ -500,7 +500,7 @@ const ClineRulesToggleModal: React.FC = () => {
 						<div className="text-xs text-description mb-4">
 							{currentView === "rules" ? (
 								<p>
-									Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way
+									Rules allow you to provide HAI with system-level guidance. Think of them as a persistent way
 									to include context and preferences for your projects or globally for every conversation.{" "}
 									<VSCodeLink
 										className="text-xs"
@@ -511,7 +511,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								</p>
 							) : currentView === "workflows" ? (
 								<p>
-									Workflows allow you to define a series of steps to guide Cline through a repetitive set of
+									Workflows allow you to define a series of steps to guide HAI through a repetitive set of
 									tasks, such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
 									<span className="text-foreground font-bold">/workflow-name</span> in the chat.{" "}
 									<VSCodeLink
@@ -528,7 +528,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								</p>
 							) : (
 								<p>
-									Hooks allow you to execute custom scripts at specific points in Cline's execution lifecycle,
+									Hooks allow you to execute custom scripts at specific points in HAI's execution lifecycle,
 									enabling automation and integration with external tools.
 								</p>
 							)}

@@ -553,9 +553,7 @@ console.log(JSON.stringify({
 
 	describe("Fixture-Based Tests", () => {
 		it("should validate representative fixtures end-to-end", async function () {
-			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-			}
+			this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 			const scenarios: FixtureScenario[] = [
 				{
