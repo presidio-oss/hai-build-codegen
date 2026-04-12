@@ -1,10 +1,9 @@
-import { IHaiClineTask, IHaiStory, IHaiTask } from "@shared/hai-task"
-import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
-import type { HaiTasksLoadRequest } from "@shared/proto/cline/ui"
+import type { IHaiClineTask, IHaiStory, IHaiTask } from "@shared/hai-task"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useState } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
-import DetailedView from "./components/hai/DetailedView"
+import ClineKanbanLaunchModal, { CLINE_KANBAN_MODAL_DISMISS_ID } from "./components/common/ClineKanbanLaunchModal"
 import { HaiTasksList } from "./components/hai/hai-tasks-list"
 import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
@@ -15,344 +14,237 @@ import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
-import { UiServiceClient } from "./services/grpc-client"
+import { StateServiceClient, UiServiceClient } from "./services/grpc-client"
+
+const KANBAN_MODAL_ENABLED = false
 
 const AppContent = () => {
 	const {
 		didHydrateState,
 		showWelcome,
 		shouldShowAnnouncement,
+		dismissedBanners,
 		showMcp,
 		mcpTab,
 		showSettings,
+		settingsTargetSection,
 		showHistory,
 		showAccount,
 		showWorktrees,
+		showHaiTaskList,
 		showAnnouncement,
 		onboardingModels,
-		navigateToHaiTaskList: contextNavigateToHaiTaskList,
-		showHaiTaskList,
-		hideHaiTaskList,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
 		closeMcpView,
-		navigateToHistory: contextNavigateToHistory,
-		navigateToSettings: contextNavigateToSettings,
-		navigateToAccount: contextNavigateToAccount,
-		navigateToMcp: contextNavigateToMcp,
-		navigateToChat: contextNavigateToChat,
+		navigateToMcp,
+		navigateToSettings,
+		navigateToChat,
+		navigateToHistory,
+		navigateToHaiTaskList,
 		hideSettings,
 		hideHistory,
 		hideAccount,
 		hideWorktrees,
+		hideHaiTaskList,
 		hideAnnouncement,
 	} = useExtensionState()
+	const [showKanbanModal, setShowKanbanModal] = useState(false)
+	const [hasShownKanbanModal, setHasShownKanbanModal] = useState(false)
+	const [selectedHaiTask, setSelectedHaiTask] = useState<IHaiClineTask | null>(null)
+	const [haiTaskList, setHaiTaskList] = useState<IHaiStory[]>([])
+	const [haiTaskLastUpdatedTs, setHaiTaskLastUpdatedTs] = useState<string | undefined>(undefined)
+	const [haiConfigFolder, setHaiConfigFolder] = useState("")
 
-	const [selectedTask, setSelectedTask] = useState<IHaiClineTask | null>(null)
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
-	const [taskList, setTaskList] = useState<IHaiStory[]>([])
-	const [taskLastUpdatedTs, setTaskLastUpdatedTs] = useState<string>("")
-	const [haiConfigFolder, setHaiConfigFolder] = useState<string>("")
-	const [detailedTask, setDetailedTask] = useState<IHaiTask | null>(null)
-	const [detailedStory, setDetailedStory] = useState<IHaiStory | null>(null)
-	const [_showExperts, setShowExperts] = useState(false)
 
 	useEffect(() => {
-		if (shouldShowAnnouncement) {
-			setShowAnnouncement(true)
-
-			// Use the gRPC client instead of direct WebviewMessage
-			UiServiceClient.onDidShowAnnouncement({} as EmptyRequest)
-				.then((response: Boolean) => {
-					setShouldShowAnnouncement(response.value)
-				})
-				.catch((error) => {
-					console.error("Failed to acknowledge announcement:", error)
-				})
-		}
-	}, [shouldShowAnnouncement, setShouldShowAnnouncement, setShowAnnouncement])
-
-	// Subscribe to HAI task data updates
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToHaiTaskData({} as EmptyRequest, {
-			onResponse: (data) => {
-				// Convert proto stories back to IHaiStory format
-				const stories: IHaiStory[] = data.stories.map((story) => ({
-					id: story.id,
-					prdId: story.prdId,
-					name: story.name,
-					description: story.description,
-					storyTicketId: story.storyTicketId,
-					tasks: story.tasks.map((task) => ({
-						id: task.id,
-						list: task.list,
-						acceptance: task.acceptance,
-						subTaskTicketId: task.subTaskTicketId,
-						status: task.status,
-					})),
-				}))
-				setTaskList(stories)
-				setTaskLastUpdatedTs(data.timestamp)
-				setHaiConfigFolder(data.folderPath)
+		const unsubscribeHaiTaskData = UiServiceClient.subscribeToHaiTaskData(EmptyRequest.create({}), {
+			onResponse: (response) => {
+				setHaiTaskList(response.stories || [])
+				setHaiTaskLastUpdatedTs(response.timestamp || undefined)
+				setHaiConfigFolder(response.folderPath || "")
 			},
 			onError: (error) => {
 				console.error("Error in HAI task data subscription:", error)
 			},
-			onComplete: () => {
-				console.log("HAI task data subscription completed")
-			},
+			onComplete: () => {},
 		})
 
 		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
+			unsubscribeHaiTaskData()
 		}
 	}, [])
 
-	// Subscribe to HAI Build Task List button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToHaiBuildTaskListClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] HAI Build Task List button clicked - clearing detailed state")
-				// Clear detailed state when button is clicked
-				setDetailedTask(null)
-				setDetailedStory(null)
-				// Then navigate to task list
-				contextNavigateToHaiTaskList()
-			},
-			onError: (error) => {
-				console.error("Error in HAI Build Task List button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("HAI Build Task List button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToHaiTaskList])
-
-	// Subscribe to MCP button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToMcpButtonClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] MCP button clicked - clearing detailed state")
-				setDetailedTask(null)
-				setDetailedStory(null)
-				contextNavigateToMcp()
-			},
-			onError: (error) => {
-				console.error("Error in MCP button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("MCP button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToMcp])
-
-	// Subscribe to History button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToHistoryButtonClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] History button clicked - clearing detailed state")
-				setDetailedTask(null)
-				setDetailedStory(null)
-				contextNavigateToHistory()
-			},
-			onError: (error) => {
-				console.error("Error in History button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("History button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToHistory])
-
-	// Subscribe to Account button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToAccountButtonClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] Account button clicked - clearing detailed state")
-				setDetailedTask(null)
-				setDetailedStory(null)
-				contextNavigateToAccount()
-			},
-			onError: (error) => {
-				console.error("Error in Account button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("Account button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToAccount])
-
-	// Subscribe to Settings button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToSettingsButtonClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] Settings button clicked - clearing detailed state")
-				setDetailedTask(null)
-				setDetailedStory(null)
-				contextNavigateToSettings()
-			},
-			onError: (error) => {
-				console.error("Error in Settings button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("Settings button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToSettings])
-
-	// Subscribe to Chat/New Task button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToChatButtonClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] Chat/New Task button clicked - clearing detailed state")
-				setDetailedTask(null)
-				setDetailedStory(null)
-				contextNavigateToChat()
-			},
-			onError: (error) => {
-				console.error("Error in Chat button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("Chat button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToChat])
-
-	// Handler for loading/configuring HAI tasks
-	const handleConfigure = useCallback(
-		async (loadDefault: boolean) => {
-			try {
-				const request: HaiTasksLoadRequest = {
-					metadata: {},
-					folderPath: loadDefault ? haiConfigFolder : "",
-					loadDefault: loadDefault,
-				}
-				await UiServiceClient.loadHaiTasks(request)
-			} catch (error) {
+	const handleHaiTasksConfigure = useCallback(
+		(loadDefault: boolean) => {
+			UiServiceClient.loadHaiTasks({
+				metadata: {},
+				folderPath: loadDefault ? haiConfigFolder : "",
+				loadDefault,
+			}).catch((error) => {
 				console.error("Failed to load HAI tasks:", error)
-			}
+			})
 		},
 		[haiConfigFolder],
 	)
 
-	// Handler for resetting HAI tasks
-	const handleHaiTaskReset = useCallback(async () => {
-		try {
-			await UiServiceClient.resetHaiTasks({} as EmptyRequest)
-		} catch (error) {
-			console.error("Failed to reset HAI tasks:", error)
+	const handleHaiTaskReset = useCallback(() => {
+		UiServiceClient.resetHaiTasks(EmptyRequest.create({}))
+			.then(() => {
+				setHaiTaskList([])
+				setHaiTaskLastUpdatedTs(undefined)
+				setSelectedHaiTask(null)
+			})
+			.catch((error) => {
+				console.error("Failed to reset HAI tasks:", error)
+			})
+	}, [])
+
+	const handleHaiTaskSelect = useCallback(
+		(task: IHaiClineTask) => {
+			setSelectedHaiTask(task)
+			hideHaiTaskList()
+		},
+		[hideHaiTaskList],
+	)
+
+	const handleHaiTaskClick = useCallback((_task: IHaiTask) => {
+		// Reserved for detailed HAI task view.
+	}, [])
+
+	const handleHaiStoryClick = useCallback((_story: IHaiStory) => {
+		// Reserved for detailed HAI story view.
+	}, [])
+
+	useEffect(() => {
+		const emptyRequest = EmptyRequest.create({})
+
+		const unsubscribeChat = UiServiceClient.subscribeToChatButtonClicked(emptyRequest, {
+			onResponse: () => {
+				setSelectedHaiTask(null)
+				navigateToChat()
+			},
+			onError: (error) => {
+				console.error("Error in chat button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		const unsubscribeMcp = UiServiceClient.subscribeToMcpButtonClicked(emptyRequest, {
+			onResponse: () => {
+				navigateToMcp()
+			},
+			onError: (error) => {
+				console.error("Error in MCP button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		const unsubscribeHistory = UiServiceClient.subscribeToHistoryButtonClicked(emptyRequest, {
+			onResponse: () => {
+				navigateToHistory()
+			},
+			onError: (error) => {
+				console.error("Error in history button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		const unsubscribeTaskList = UiServiceClient.subscribeToHaiBuildTaskListClicked(emptyRequest, {
+			onResponse: () => {
+				setSelectedHaiTask(null)
+				navigateToHaiTaskList()
+			},
+			onError: (error) => {
+				console.error("Error in HAI task list button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		const unsubscribeSettings = UiServiceClient.subscribeToSettingsButtonClicked(emptyRequest, {
+			onResponse: () => {
+				navigateToSettings()
+			},
+			onError: (error) => {
+				console.error("Error in settings button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		return () => {
+			unsubscribeChat()
+			unsubscribeMcp()
+			unsubscribeHistory()
+			unsubscribeTaskList()
+			unsubscribeSettings()
+		}
+	}, [navigateToChat, navigateToHistory, navigateToHaiTaskList, navigateToMcp, navigateToSettings])
+
+	const showUpdateAnnouncementModal = useCallback(() => {
+		setShowAnnouncement(true)
+		UiServiceClient.onDidShowAnnouncement({} as EmptyRequest)
+			.then((response) => {
+				setShouldShowAnnouncement(response.value)
+			})
+			.catch((error) => {
+				console.error("Failed to acknowledge announcement:", error)
+			})
+	}, [setShouldShowAnnouncement, setShowAnnouncement])
+
+	useEffect(() => {
+		if (!KANBAN_MODAL_ENABLED) {
+			setHasShownKanbanModal(true)
+			setShowKanbanModal(false)
+			return
+		}
+
+		if (!didHydrateState || showWelcome || hasShownKanbanModal) {
+			return
+		}
+		const hasDismissedKanbanModal = dismissedBanners?.some((banner) => banner.bannerId === CLINE_KANBAN_MODAL_DISMISS_ID)
+		if (!hasDismissedKanbanModal) {
+			setShowKanbanModal(true)
+		}
+		setHasShownKanbanModal(true)
+	}, [didHydrateState, dismissedBanners, hasShownKanbanModal, showWelcome])
+
+	// Keep update announcements queued until the Kanban modal has either shown and closed or been skipped.
+	useEffect(() => {
+		if (!KANBAN_MODAL_ENABLED) {
+			if (!didHydrateState || showWelcome || !shouldShowAnnouncement || showAnnouncement) {
+				return
+			}
+			showUpdateAnnouncementModal()
+			return
+		}
+
+		if (!didHydrateState || showWelcome || !shouldShowAnnouncement || showAnnouncement) {
+			return
+		}
+		const isKanbanModalBlocking = showKanbanModal || !hasShownKanbanModal
+		if (isKanbanModalBlocking) {
+			return
+		}
+		showUpdateAnnouncementModal()
+	}, [
+		didHydrateState,
+		showWelcome,
+		shouldShowAnnouncement,
+		showAnnouncement,
+		showKanbanModal,
+		hasShownKanbanModal,
+		showUpdateAnnouncementModal,
+	])
+
+	const handleCloseKanbanModal = useCallback((doNotShowAgain: boolean) => {
+		setShowKanbanModal(false)
+		if (doNotShowAgain) {
+			StateServiceClient.dismissBanner({ value: CLINE_KANBAN_MODAL_DISMISS_ID }).catch((error) =>
+				console.error("Failed to persist Cline Kanban modal dismissal:", error),
+			)
 		}
 	}, [])
-
-	// Handler for task click
-	const handleTaskClick = useCallback(
-		(task: IHaiTask) => {
-			setDetailedTask(task)
-			const story = taskList.find((story) => story.tasks.some((t) => t.id === task.id && t === task))
-			setDetailedStory(story || null)
-		},
-		[taskList],
-	)
-
-	// Handler for story click
-	const handleStoryClick = useCallback((story: IHaiStory) => {
-		setDetailedStory(story)
-		setDetailedTask(null)
-	}, [])
-
-	// Handler for breadcrumb navigation
-	const handleBreadcrumbClick = useCallback((type: string) => {
-		if (type === "USER_STORIES") {
-			setDetailedTask(null)
-			setDetailedStory(null)
-		} else if (type === "USER_STORY") {
-			setDetailedTask(null)
-		}
-	}, [])
-
-	// Wrapped navigation functions that clear detailed state
-	const navigateToHistory = useCallback(() => {
-		setDetailedTask(null)
-		setDetailedStory(null)
-		contextNavigateToHistory()
-	}, [contextNavigateToHistory])
-
-	const navigateToSettings = useCallback(
-		(targetSection?: string) => {
-			setDetailedTask(null)
-			setDetailedStory(null)
-			contextNavigateToSettings(targetSection)
-		},
-		[contextNavigateToSettings],
-	)
-
-	const navigateToAccount = useCallback(() => {
-		setDetailedTask(null)
-		setDetailedStory(null)
-		contextNavigateToAccount()
-	}, [contextNavigateToAccount])
-
-	const navigateToMcp = useCallback(
-		(tab?: any) => {
-			setDetailedTask(null)
-			setDetailedStory(null)
-			contextNavigateToMcp(tab)
-		},
-		[contextNavigateToMcp],
-	)
-
-	const navigateToHaiTaskList = useCallback(() => {
-		setDetailedTask(null)
-		setDetailedStory(null)
-		contextNavigateToHaiTaskList()
-	}, [contextNavigateToHaiTaskList])
-
-	const navigateToChat = useCallback(() => {
-		setDetailedTask(null)
-		setDetailedStory(null)
-		contextNavigateToChat()
-	}, [contextNavigateToChat])
-
-	// Hide function for experts
-	const _hideExperts = useCallback(() => setShowExperts(false), [])
 
 	if (!didHydrateState) {
 		return null
@@ -364,62 +256,42 @@ const AppContent = () => {
 
 	return (
 		<div className="flex h-screen w-full flex-col">
-			{detailedTask || detailedStory ? (
-				<DetailedView
-					onBreadcrumbClick={handleBreadcrumbClick}
-					onTaskClick={handleTaskClick}
-					onTaskSelect={(selectedTask) => {
-						setSelectedTask(selectedTask)
-						setDetailedTask(null)
-						setDetailedStory(null)
-						hideHaiTaskList()
-					}}
-					story={detailedStory}
-					task={detailedTask}
+			{KANBAN_MODAL_ENABLED && <ClineKanbanLaunchModal onClose={handleCloseKanbanModal} open={showKanbanModal} />}
+			{showHaiTaskList && (
+				<HaiTasksList
+					haiTaskLastUpdatedTs={haiTaskLastUpdatedTs}
+					haiTaskList={haiTaskList}
+					onCancel={hideHaiTaskList}
+					onConfigure={handleHaiTasksConfigure}
+					onHaiTaskReset={handleHaiTaskReset}
+					onStoryClick={handleHaiStoryClick}
+					onTaskClick={handleHaiTaskClick}
+					selectedHaiTask={handleHaiTaskSelect}
 				/>
-			) : (
-				<>
-					{showSettings && <SettingsView onDone={hideSettings} />}
-					{showHistory && <HistoryView onDone={hideHistory} />}
-					{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
-					{showAccount && (
-						<AccountView
-							activeOrganization={activeOrganization}
-							clineUser={clineUser}
-							onDone={hideAccount}
-							organizations={organizations}
-						/>
-					)}
-					{showHaiTaskList && (
-						<HaiTasksList
-							haiTaskLastUpdatedTs={taskLastUpdatedTs}
-							haiTaskList={taskList}
-							onCancel={hideHaiTaskList}
-							onConfigure={handleConfigure}
-							onHaiTaskReset={handleHaiTaskReset}
-							onStoryClick={handleStoryClick}
-							onTaskClick={handleTaskClick}
-							selectedHaiTask={(selectedTask: IHaiClineTask) => {
-								setSelectedTask(selectedTask)
-								hideHaiTaskList()
-							}}
-						/>
-					)}
-					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-					<ChatView
-						haiConfigFolder={haiConfigFolder}
-						hideAnnouncement={hideAnnouncement}
-						isHidden={showSettings || showHistory || showMcp || showAccount || showHaiTaskList}
-						onTaskSelect={(selectedTask: IHaiClineTask | null) => {
-							setSelectedTask(selectedTask)
-						}}
-						selectedHaiTask={selectedTask}
-						showAnnouncement={showAnnouncement}
-						showHaiTaskListView={navigateToHaiTaskList}
-						showHistoryView={navigateToHistory}
-					/>
-				</>
 			)}
+			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
+			{showHistory && <HistoryView onDone={hideHistory} />}
+			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
+			{showAccount && (
+				<AccountView
+					activeOrganization={activeOrganization}
+					clineUser={clineUser}
+					onDone={hideAccount}
+					organizations={organizations}
+				/>
+			)}
+			{showWorktrees && <WorktreesView onDone={hideWorktrees} />}
+			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
+			<ChatView
+				haiConfigFolder={haiConfigFolder}
+				hideAnnouncement={hideAnnouncement}
+				isHidden={showSettings || showHistory || showMcp || showAccount || showWorktrees}
+				onTaskSelect={setSelectedHaiTask}
+				selectedHaiTask={selectedHaiTask}
+				showAnnouncement={showAnnouncement}
+				showHaiTaskListView={navigateToHaiTaskList}
+				showHistoryView={navigateToHistory}
+			/>
 		</div>
 	)
 }

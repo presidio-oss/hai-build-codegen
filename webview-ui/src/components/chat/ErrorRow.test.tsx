@@ -3,17 +3,6 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import ErrorRow from "./ErrorRow"
 
-// Mock the auth context
-vi.mock("@/context/ClineAuthContext", () => ({
-	useClineAuth: () => ({
-		clineUser: null,
-	}),
-	useClineSignIn: () => ({
-		isLoginLoading: false,
-	}),
-	handleSignOut: vi.fn(),
-}))
-
 // Mock CreditLimitError component
 vi.mock("@/components/chat/CreditLimitError", () => ({
 	default: ({ message }: { message: string }) => <div data-testid="credit-limit-error">{message}</div>,
@@ -64,7 +53,7 @@ describe("ErrorRow", () => {
 		).toBeInTheDocument()
 	})
 
-	it("renders haiignore error", () => {
+	it("renders clineignore error", () => {
 		const clineignoreMessage = { ...mockMessage, text: "/path/to/file.txt" }
 		render(<ErrorRow errorType="clineignore_error" message={clineignoreMessage} />)
 
@@ -115,23 +104,6 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("Request ID: req_123456")).toBeInTheDocument()
 		})
 
-		it("renders auth error with sign in button when user is not signed in", async () => {
-			const mockClineError = {
-				message: "Authentication failed",
-				isErrorType: vi.fn((type) => type === "auth"),
-				providerId: "cline",
-				_error: {},
-			}
-
-			const { ClineError } = await import("../../../../src/services/error/ClineError")
-			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
-
-			render(<ErrorRow apiRequestFailedMessage="Authentication failed" errorType="error" message={mockMessage} />)
-
-			expect(screen.getByText("Authentication failed")).toBeInTheDocument()
-			expect(screen.getByText("Sign in to HAI")).toBeInTheDocument()
-		})
-
 		it("renders PowerShell troubleshooting link when error mentions PowerShell", async () => {
 			const mockClineError = {
 				message: "PowerShell is not recognized as an internal or external command",
@@ -154,7 +126,7 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("troubleshooting guide")).toBeInTheDocument()
 			expect(screen.getByRole("link", { name: "troubleshooting guide" })).toHaveAttribute(
 				"href",
-				"https://github.com/presidio-oss/hai-build-codegen/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22",
+				"https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22",
 			)
 		})
 
