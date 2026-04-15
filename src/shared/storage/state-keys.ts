@@ -18,8 +18,7 @@ import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
-import { IHaiStory } from "../hai-task"
-import { BlobStoreSettings } from "./ClineBlobStorage"
+import { type BlobStoreSettings } from "./types"
 
 // ============================================================================
 // SINGLE SOURCE OF TRUTH FOR STORAGE KEYS
@@ -383,10 +382,7 @@ export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtra
 // ============================================================================
 
 export type Secrets = { [K in (typeof SecretKeys)[number]]: string | undefined }
-export type LocalState = { [K in (typeof LocalStateKeys)[number]]: ClineRulesToggles } & {
-	haiConfig: { folder: string; ts: string } | undefined
-	haiTaskList: IHaiStory[] | undefined
-}
+export type LocalState = { [K in (typeof LocalStateKeys)[number]]: ClineRulesToggles }
 export type SecretKey = (typeof SecretKeys)[number]
 export type GlobalStateKey = keyof GlobalState
 export type LocalStateKey = keyof LocalState
@@ -423,8 +419,7 @@ export const COMPUTED_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...
 export const isGlobalStateKey = (key: string): key is GlobalStateKey => GlobalStateKeys.has(key)
 export const isSettingsKey = (key: string): key is SettingsKey => SettingsKeysSet.has(key)
 export const isSecretKey = (key: string): key is SecretKey => new Set(SECRETS_KEYS).has(key as SecretKey)
-export const isLocalStateKey = (key: string): key is LocalStateKey =>
-	new Set([...LocalStateKeys, "haiConfig", "haiTaskList"] as const).has(key as LocalStateKey)
+export const isLocalStateKey = (key: string): key is LocalStateKey => new Set(LocalStateKeys).has(key as LocalStateKey)
 
 // ============================================================================
 // UTILITY FUNCTIONS
