@@ -9,7 +9,7 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
-import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
@@ -30,7 +30,6 @@ import {
 	PencilIcon,
 	RefreshCwIcon,
 	SearchIcon,
-	SettingsIcon,
 	SquareArrowOutUpRightIcon,
 	SquareMinusIcon,
 	TerminalIcon,
@@ -148,15 +147,8 @@ export const ChatRowContent = memo(
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
-		const {
-			backgroundEditEnabled,
-			mcpServers,
-			mcpMarketplaceCatalog,
-			onRelinquishControl,
-			vscodeTerminalExecutionMode,
-			clineMessages,
-			showFeatureTips,
-		} = useExtensionState()
+		const { backgroundEditEnabled, mcpServers, mcpMarketplaceCatalog, onRelinquishControl, clineMessages, showFeatureTips } =
+			useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -320,12 +312,12 @@ export const ChatRowContent = memo(
 				case "mistake_limit_reached":
 					return [
 						<CircleXIcon className="text-error size-2" />,
-						<span className="text-error font-bold">HAI is having trouble...</span>,
+						<span className="text-error font-bold">Cline is having trouble...</span>,
 					]
 				case "command":
 					return [
 						<TerminalIcon className="text-foreground size-2" />,
-						<span className="font-bold text-foreground">HAI wants to execute this command:</span>,
+						<span className="font-bold text-foreground">Cline wants to execute this command:</span>,
 					]
 				case "use_mcp_server":
 					const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
@@ -336,7 +328,7 @@ export const ChatRowContent = memo(
 							<span className="codicon codicon-server text-foreground mb-[-1.5px]" />
 						),
 						<span className="ph-no-capture font-bold text-foreground break-words">
-							HAI wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
+							Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
 							<code className="break-all">
 								{getMcpServerDisplayName(mcpServerUse.serverName, mcpMarketplaceCatalog)}
 							</code>{" "}
@@ -355,7 +347,7 @@ export const ChatRowContent = memo(
 				case "followup":
 					return [
 						<span className="codicon codicon-question text-foreground mb-[-1.5px]" />,
-						<span className="font-bold text-foreground">HAI has a question:</span>,
+						<span className="font-bold text-foreground">Cline has a question:</span>,
 					]
 				default:
 					return [null, null]
@@ -433,8 +425,8 @@ export const ChatRowContent = memo(
 					const content = tool?.content || ""
 					const isApplyingPatch = content?.startsWith("%%bash") && !content.endsWith("*** End Patch\nEOF")
 					const editToolTitle = isApplyingPatch
-						? "HAI is creating patches to edit this file:"
-						: "HAI wants to edit this file:"
+						? "Cline is creating patches to edit this file:"
+						: "Cline wants to edit this file:"
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>
@@ -468,7 +460,7 @@ export const ChatRowContent = memo(
 								<SquareMinusIcon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>HAI wants to delete this file:</span>
+								<span style={{ fontWeight: "bold" }}>Cline wants to delete this file:</span>
 							</div>
 							<CodeAccordian
 								// isLoading={message.partial}
@@ -486,7 +478,7 @@ export const ChatRowContent = memo(
 								<FilePlus2Icon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span className="font-bold">HAI wants to create a new file:</span>
+								<span className="font-bold">Cline wants to create a new file:</span>
 							</div>
 							{backgroundEditEnabled && tool.path && tool.content ? (
 								<DiffEditRow patch={tool.content} path={tool.path} startLineNumbers={tool.startLineNumbers} />
@@ -509,7 +501,7 @@ export const ChatRowContent = memo(
 								{isImage ? <ImageUpIcon className="size-2" /> : <FileCode2Icon className="size-2" />}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span className="font-bold">HAI wants to read this file:</span>
+								<span className="font-bold">Cline wants to read this file:</span>
 							</div>
 							<div className="bg-code rounded-sm overflow-hidden border border-editor-group-border">
 								<div
@@ -549,8 +541,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
 									{message.type === "ask"
-										? "HAI wants to view the top level files in this directory:"
-										: "HAI viewed the top level files in this directory:"}
+										? "Cline wants to view the top level files in this directory:"
+										: "Cline viewed the top level files in this directory:"}
 								</span>
 							</div>
 							<CodeAccordian
@@ -571,8 +563,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
 									{message.type === "ask"
-										? "HAI wants to recursively view all files in this directory:"
-										: "HAI recursively viewed all files in this directory:"}
+										? "Cline wants to recursively view all files in this directory:"
+										: "Cline recursively viewed all files in this directory:"}
 								</span>
 							</div>
 							<CodeAccordian
@@ -593,8 +585,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
 									{message.type === "ask"
-										? "HAI wants to view source code definition names used in this directory:"
-										: "HAI viewed source code definition names used in this directory:"}
+										? "Cline wants to view source code definition names used in this directory:"
+										: "Cline viewed source code definition names used in this directory:"}
 								</span>
 							</div>
 							<CodeAccordian
@@ -613,7 +605,7 @@ export const ChatRowContent = memo(
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span className="font-bold">
-									HAI wants to search this directory for <code className="break-all">{tool.regex}</code>:
+									Cline wants to search this directory for <code className="break-all">{tool.regex}</code>:
 								</span>
 							</div>
 							<SearchResultsDisplay
@@ -630,7 +622,7 @@ export const ChatRowContent = memo(
 						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<FoldVerticalIcon className="size-2" />
-								<span className="font-bold">HAI is condensing the conversation:</span>
+								<span className="font-bold">Cline is condensing the conversation:</span>
 							</div>
 							<div className="bg-code overflow-hidden border border-editor-group-border rounded-[3px]">
 								<div
@@ -675,8 +667,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This URL is external")}
 								<span className="font-bold">
 									{message.type === "ask"
-										? "HAI wants to fetch content from this URL:"
-										: "HAI fetched content from this URL:"}
+										? "Cline wants to fetch content from this URL:"
+										: "Cline fetched content from this URL:"}
 								</span>
 							</div>
 							<div
@@ -703,7 +695,9 @@ export const ChatRowContent = memo(
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This search is external")}
 								<span className="font-bold">
-									{message.type === "ask" ? "HAI wants to search the web for:" : "HAI searched the web for:"}
+									{message.type === "ask"
+										? "Cline wants to search the web for:"
+										: "Cline searched the web for:"}
 								</span>
 							</div>
 							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs select-text py-[9px] px-2.5">
@@ -718,7 +712,7 @@ export const ChatRowContent = memo(
 						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<LightbulbIcon className="size-2" />
-								<span className="font-bold">HAI loaded the skill:</span>
+								<span className="font-bold">Cline loaded the skill:</span>
 							</div>
 							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-[9px] px-2.5">
 								<span className="ph-no-capture font-medium">{tool.path}</span>
@@ -758,7 +752,7 @@ export const ChatRowContent = memo(
 			return (
 				<CommandOutputRow
 					icon={icon}
-					isBackgroundExec={vscodeTerminalExecutionMode === "backgroundExec"}
+					isBackgroundExec={true}
 					isCommandCompleted={isCommandCompleted}
 					isCommandExecuting={isCommandExecuting}
 					isCommandPending={isCommandPending}
@@ -1035,26 +1029,6 @@ export const ChatRowContent = memo(
 								text={text || ""}
 							/>
 						)
-					case "shell_integration_warning":
-						return (
-							<div className="flex flex-col bg-warning/20 p-2 rounded-xs border border-error">
-								<div className="flex items-center mb-1">
-									<TriangleAlertIcon className="mr-2 size-2 stroke-3 text-error" />
-									<span className="font-medium text-foreground">Shell Integration Unavailable</span>
-								</div>
-								<div className="text-foreground opacity-80">
-									HAI may have trouble viewing the command's output. Please update VSCode (
-									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported shell:
-									zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default
-									Profile").
-									<a
-										className="px-1"
-										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable">
-										Still having trouble?
-									</a>
-								</div>
-							</div>
-						)
 					case "error_retry":
 						try {
 							const retryInfo = JSON.parse(message.text || "{}")
@@ -1108,41 +1082,6 @@ export const ChatRowContent = memo(
 						return <InvisibleSpacer />
 					case "subagent":
 						return <SubagentStatusRow isLast={isLast} lastModifiedMessage={lastModifiedMessage} message={message} />
-					case "shell_integration_warning_with_suggestion":
-						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
-						return (
-							<div className="p-2 bg-link/10 border border-link/30 rounded-xs">
-								<div className="flex items-center mb-1">
-									<LightbulbIcon className="mr-1.5 size-2 text-link" />
-									<span className="font-medium text-foreground">Shell integration issues</span>
-								</div>
-								<div className="text-foreground opacity-90 mb-2">
-									Since you're experiencing repeated shell integration issues, we recommend switching to
-									Background Terminal mode for better reliability.
-								</div>
-								<button
-									className={cn(
-										"bg-button-background text-button-foreground border-0 rounded-xs py-1.5 px-3 text-[12px] flex items-center gap-1.5 cursor-pointer hover:bg-button-hover",
-										{
-											"cursor-default opacity-80 bg-success": isBackgroundModeEnabled,
-										},
-									)}
-									disabled={isBackgroundModeEnabled}
-									onClick={async () => {
-										try {
-											// Enable background terminal execution mode
-											await UiServiceClient.setTerminalExecutionMode(BooleanRequest.create({ value: true }))
-										} catch (error) {
-											console.error("Failed to enable background terminal:", error)
-										}
-									}}>
-									<SettingsIcon className="size-2" />
-									{isBackgroundModeEnabled
-										? "Background Terminal Enabled"
-										: "Enable Background Terminal (Recommended)"}
-								</button>
-							</div>
-						)
 					case "task_progress":
 						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:
@@ -1242,7 +1181,7 @@ export const ChatRowContent = memo(
 							<div>
 								<div className={HEADER_CLASSNAMES}>
 									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">HAI wants to start a new task:</span>
+									<span className="text-foreground font-bold">Cline wants to start a new task:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
 							</div>
@@ -1252,7 +1191,7 @@ export const ChatRowContent = memo(
 							<div>
 								<div className={HEADER_CLASSNAMES}>
 									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">HAI wants to condense your conversation:</span>
+									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
 							</div>
@@ -1262,7 +1201,7 @@ export const ChatRowContent = memo(
 							<div>
 								<div className={HEADER_CLASSNAMES}>
 									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">HAI wants to create a Github issue:</span>
+									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
 								</div>
 								<ReportBugPreview data={message.text || ""} />
 							</div>
