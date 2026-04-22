@@ -2,6 +2,8 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import { memo } from "react"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import SpendLimitError from "@/components/chat/SpendLimitError"
+import { Button } from "@/components/ui/button"
+import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
 import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
 
 const _errorColor = "var(--vscode-errorForeground)"
@@ -14,7 +16,10 @@ interface ErrorRowProps {
 }
 
 const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage }: ErrorRowProps) => {
+	const { clineUser } = useClineAuth()
 	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
+
+	const { isLoginLoading, handleSignIn } = useClineSignIn()
 
 	const renderErrorContent = () => {
 		switch (errorType) {
@@ -22,11 +27,12 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 			case "mistake_limit_reached":
 				// Handle API request errors with special error parsing
 				if (rawApiError) {
-					// Note: ClineError parsing should not be applied to non-Cline providers, but it seems we're using clineErrorMessage below in the default error display
+					// FIXME: ClineError parsing should not be applied to non-Cline providers, but it seems we're using clineErrorMessage below in the default error display
 					const clineError = ClineError.parse(rawApiError)
 					const errorMessage = clineError?._error?.message || clineError?.message || rawApiError
 					const requestId = clineError?._error?.request_id
 					const providerId = clineError?.providerId || clineError?._error?.providerId
+					const isClineProvider = providerId === "cline"
 					const errorCode = clineError?._error?.code
 
 					if (clineError?.isErrorType(ClineErrorType.Balance)) {
@@ -61,6 +67,34 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 								{errorMessage}
 								{requestId && <div>Request ID: {requestId}</div>}
 							</p>
+						)
+					}
+
+					if (clineError?.isErrorType(ClineErrorType.QuotaExceeded)) {
+						return <p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">{errorMessage}</p>
+					}
+
+					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineProvider) {
+						return !clineUser ? (
+							// User is using Cline provider and is not logged in
+							<div className="flex flex-col gap-3">
+								<div className="flex items-center justify-center rounded border border-neutral-500/30 bg-vscode-editor-background p-6 text-center text-vscode-foreground">
+									Whoops looks like you're logged out – click below to sign in
+								</div>
+								<Button className="w-full" disabled={isLoginLoading} onClick={handleSignIn}>
+									Sign in to Cline
+									{isLoginLoading && (
+										<span className="ml-1 animate-spin">
+											<span className="codicon codicon-refresh" />
+										</span>
+									)}
+								</Button>
+							</div>
+						) : (
+							// Don't show sign in button after the user has logged in, just ask them to retry
+							<div className="mt-4">
+								<span className="text-description">(Click "Retry" below)</span>
+							</div>
 						)
 					}
 
@@ -112,11 +146,8 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 				return (
 					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
 						<div>
-							<span>HAI tried to access </span>
-							<code>{message.text}</code>
-							<span> which is blocked by the </span>
-							<code>.clineignore</code>
-							<span> file.</span>
+							Cline tried to access <code>{message.text}</code> which is blocked by the <code>.clineignore</code>
+							file.
 						</div>
 					</div>
 				)

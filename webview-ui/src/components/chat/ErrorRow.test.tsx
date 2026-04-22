@@ -3,6 +3,17 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import ErrorRow from "./ErrorRow"
 
+// Mock the auth context
+vi.mock("@/context/ClineAuthContext", () => ({
+	useClineAuth: () => ({
+		clineUser: null,
+	}),
+	useClineSignIn: () => ({
+		isLoginLoading: false,
+	}),
+	handleSignOut: vi.fn(),
+}))
+
 // Mock CreditLimitError component
 vi.mock("@/components/chat/CreditLimitError", () => ({
 	default: ({ message }: { message: string }) => <div data-testid="credit-limit-error">{message}</div>,
@@ -57,7 +68,7 @@ describe("ErrorRow", () => {
 		const clineignoreMessage = { ...mockMessage, text: "/path/to/file.txt" }
 		render(<ErrorRow errorType="clineignore_error" message={clineignoreMessage} />)
 
-		expect(screen.getByText(/HAI tried to access/)).toBeInTheDocument()
+		expect(screen.getByText(/Cline tried to access/)).toBeInTheDocument()
 		expect(screen.getByText("/path/to/file.txt")).toBeInTheDocument()
 	})
 
@@ -102,6 +113,37 @@ describe("ErrorRow", () => {
 
 			expect(screen.getByText("Rate limit exceeded")).toBeInTheDocument()
 			expect(screen.getByText("Request ID: req_123456")).toBeInTheDocument()
+		})
+
+		it("renders quota exceeded error", async () => {
+			const mockClineError = {
+				message: "Inference cap reached",
+				isErrorType: vi.fn((type) => type === "quotaexceeded"),
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage="The message" errorType="error" message="" />)
+			expect(screen.getByText("Inference cap reached")).toBeInTheDocument()
+		})
+
+		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {
+			const mockClineError = {
+				message: "Authentication failed",
+				isErrorType: vi.fn((type) => type === "auth"),
+				providerId: "cline",
+				_error: {},
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage="Authentication failed" errorType="error" message={mockMessage} />)
+
+			expect(screen.queryByText("Authentication failed")).not.toBeInTheDocument()
+			expect(screen.getByText(/Whoops looks like you're logged out/)).toBeInTheDocument()
+			expect(screen.getByText("Sign in to Cline")).toBeInTheDocument()
 		})
 
 		it("renders PowerShell troubleshooting link when error mentions PowerShell", async () => {
