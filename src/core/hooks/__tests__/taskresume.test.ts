@@ -553,6 +553,8 @@ console.log(JSON.stringify({
 
 	describe("Fixture-Based Tests", () => {
 		it("should validate representative fixtures end-to-end", async function () {
+			// Multiple fixture scenarios spawn child processes sequentially,
+			// which can easily exceed the default 2 s Mocha timeout.
 			this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 			const scenarios: FixtureScenario[] = [
