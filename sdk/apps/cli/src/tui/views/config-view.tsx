@@ -235,6 +235,74 @@ function appendToolRows(
 	}
 }
 
+function withOptimisticToggle(
+	data: InteractiveConfigData,
+	item: InteractiveConfigItem,
+): InteractiveConfigData {
+	if (typeof item.enabled !== "boolean") {
+		return data;
+	}
+	const nextEnabled = !item.enabled;
+	const matchesItem = (candidate: InteractiveConfigItem) =>
+		candidate.id === item.id &&
+		candidate.path === item.path &&
+		candidate.kind === item.kind;
+	const toolNames = new Set(
+		(item.toolNames && item.toolNames.length > 0
+			? item.toolNames
+			: [item.name]
+		).filter(Boolean),
+	);
+	const updateItems = (items: InteractiveConfigItem[]) =>
+		items.map((candidate) =>
+			matchesItem(candidate)
+				? { ...candidate, enabled: nextEnabled }
+				: candidate,
+		);
+	const updateTools = (items: InteractiveConfigItem[]) =>
+		items.map((candidate) => {
+			if (matchesItem(candidate)) {
+				return { ...candidate, enabled: nextEnabled };
+			}
+			if (
+				item.kind === "tool" &&
+				toolNames.has(candidate.name) &&
+				(candidate.source === "builtin" ||
+					candidate.source === "workspace-plugin" ||
+					candidate.source === "global-plugin")
+			) {
+				return { ...candidate, enabled: nextEnabled };
+			}
+			if (item.kind === "plugin" && candidate.path === item.path) {
+				return { ...candidate, enabled: nextEnabled };
+			}
+			return candidate;
+		});
+
+	return {
+		...data,
+		workflows: updateItems(data.workflows),
+		rules: updateItems(data.rules),
+		skills: updateItems(data.skills),
+		hooks: updateItems(data.hooks),
+		agents: updateItems(data.agents),
+		plugins: updateItems(data.plugins),
+		mcp: updateItems(data.mcp),
+		tools: updateTools(data.tools),
+	};
+}
+
+function getPluginLoadErrorLabel(
+	item: InteractiveConfigItem,
+): string | undefined {
+	if (!item.loadError) {
+		return undefined;
+	}
+	const lines = item.loadError.split("\n");
+	const first = lines[0] ?? item.loadError;
+	return lines.length > 1 ? `${first} (+${lines.length - 1} more)` : first;
+}
+
 export function ConfigPanelContent(props: ConfigPanelProps) {
 	const { resolve, dismiss, dialogId, config, loadConfigData } = props;
 	const { height } = useTerminalDimensions();
@@ -264,7 +332,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 
 	useEffect(() => {
 		if (
-			activeTab !== "tools" ||
+			(activeTab !== "tools" && activeTab !== "plugins") ||
 			pluginToolsLoaded ||
 			pluginToolsError ||
 			!loadConfigData
@@ -288,7 +356,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 					return;
 				}
 				const message = error instanceof Error ? error.message : String(error);
-				setPluginToolsError(`Failed to load plugin tools: ${message}`);
+				setPluginToolsError(`Failed to load plugin diagnostics: ${message}`);
 			})
 			.finally(() => {
 				if (!cancelled) {
@@ -351,6 +419,19 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						enabled: item.enabled,
 						description: item.description,
 						item,
+						rightLabel: getPluginLoadErrorLabel(item),
+					});
+				}
+				if (activeTab === "plugins" && pluginToolsLoading) {
+					r.push({
+						kind: "detail",
+						text: "Loading plugin diagnostics...",
+					});
+				}
+				if (activeTab === "plugins" && pluginToolsError) {
+					r.push({
+						kind: "detail",
+						text: pluginToolsError,
 					});
 				}
 			}
@@ -377,8 +458,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 
 	const handleInlineToggle = async (item: InteractiveConfigItem) => {
 		if (!props.onToggleConfigItem || togglingItemId) return;
+		const previousData = configData;
 		setTogglingItemId(item.id);
 		setToggleError(undefined);
+		setConfigData((current) => withOptimisticToggle(current, item));
 		try {
 			const nextData = await props.onToggleConfigItem(item, {
 				includePluginTools: pluginToolsLoaded,
@@ -386,8 +469,18 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			if (nextData) {
 				setConfigData(nextData);
 				setPluginToolsLoaded(nextData.tools.some((tool) => tool.pluginName));
+			} else if (item.kind === "plugin" && loadConfigData) {
+				const refreshedData = await loadConfigData({
+					includePluginTools: true,
+				});
+				setConfigData(refreshedData);
+				setPluginToolsLoaded(
+					refreshedData.tools.some((tool) => tool.pluginName),
+				);
+				setPluginToolsError(undefined);
 			}
 		} catch (error) {
+			setConfigData(previousData);
 			const message = error instanceof Error ? error.message : String(error);
 			setToggleError(`Failed to update ${item.name}: ${message}`);
 		} finally {
@@ -635,8 +728,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						const rightLabel = row.rightLabel ?? "";
 						const toggleable = isToggleableConfigItem(row.item);
 						const prefix = " ".repeat(row.indent ?? 0);
-						const rowColor =
-							toggleable && enabledState === "enabled"
+						const rowColor = row.item.loadError
+							? "red"
+							: toggleable && enabledState === "enabled"
 								? palette.success
 								: enabledState === "partial"
 									? "yellow"

@@ -308,12 +308,12 @@ function buildClientContributionRegistration(
 	return registration;
 }
 
-function abortReasonMessage(value: unknown): string {
+function messageFromUnknown(value: unknown): string | undefined {
 	if (typeof value === "string" && value.trim()) {
 		return value.trim();
 	}
 	if (value instanceof Error) {
-		return value.message;
+		return value.message.trim() || undefined;
 	}
 	if (value && typeof value === "object" && "message" in value) {
 		const message = (value as { message?: unknown }).message;
@@ -321,7 +321,11 @@ function abortReasonMessage(value: unknown): string {
 			return message.trim();
 		}
 	}
-	return "Capability request was cancelled.";
+	return undefined;
+}
+
+function abortReasonMessage(value: unknown): string {
+	return messageFromUnknown(value) ?? "Capability request was cancelled.";
 }
 
 function parseApprovalInput(value: unknown): unknown {
@@ -1144,7 +1148,7 @@ export class HubRuntimeHost implements RuntimeHost {
 	async abort(sessionId: string, reason?: unknown): Promise<void> {
 		await this.client.command(
 			"run.abort",
-			{ sessionId, reason: typeof reason === "string" ? reason : undefined },
+			{ sessionId, reason: messageFromUnknown(reason) },
 			sessionId,
 		);
 	}
@@ -1671,6 +1675,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			case "run.completed":
 			case "run.failed":
 			case "run.aborted": {
+				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
 				const reason =
 					typeof event.payload?.reason === "string"
 						? event.payload.reason
@@ -1686,6 +1691,9 @@ export class HubRuntimeHost implements RuntimeHost {
 						reason,
 					},
 				});
+				if (snapshot?.interactive === true && snapshot.status === "running") {
+					return;
+				}
 				this.events.emit({
 					type: "ended",
 					payload: {
