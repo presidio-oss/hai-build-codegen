@@ -23,8 +23,8 @@
 		},
 		{
 			"label": "compile-standalone",
-			"type": "npm",
-			"script": "compile-standalone",
+			"type": "shell",
+			"command": "npm run compile-standalone",
 			"group": "build",
 			"problemMatcher": [],
 			"presentation": {
@@ -36,8 +36,8 @@
 		},
 		{
 			"label": "npm: protos",
-			"type": "npm",
-			"script": "protos",
+			"type": "shell",
+			"command": "npm run protos",
 			"problemMatcher": [],
 			"isBackground": false,
 			"presentation": {
@@ -86,8 +86,8 @@
 			"group": "build"
 		},
 		{
-			"type": "npm",
-			"script": "build:webview",
+			"type": "shell",
+			"command": "npm run build:webview",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": false,
@@ -107,8 +107,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "build:webview:test",
+			"type": "shell",
+			"command": "npm run build:webview:test",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": false,
@@ -129,8 +129,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "dev:webview",
+			"type": "shell",
+			"command": "npm run dev:webview",
 			"group": "build",
 			"problemMatcher": [
 				{
@@ -166,8 +166,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:esbuild",
+			"type": "shell",
+			"command": "npm run watch:esbuild",
 			"group": "build",
 			"problemMatcher": {
 				"pattern": [
@@ -205,8 +205,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:esbuild:test",
+			"type": "shell",
+			"command": "npm run watch:esbuild:test",
 			"group": "build",
 			"problemMatcher": {
 				"pattern": [
@@ -245,8 +245,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:tsc",
+			"type": "shell",
+			"command": "npm run watch:tsc",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
@@ -263,8 +263,9 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-tests",
+			"type": "shell",
+			"command": "npm run watch-tests",
+			"label": "npm: watch-tests",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
 			"dependsOn": [
@@ -302,8 +303,8 @@
 			"command": "rm -rf ${workspaceFolder}/apps/vscode/dist/tmp/user && mkdir -p ${workspaceFolder}/apps/vscode/dist/tmp/user"
 		},
 		{
-			"type": "npm",
-			"script": "storybook",
+			"type": "shell",
+			"command": "npm run storybook",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": false,
@@ -330,7 +331,7 @@
 				"$tsc"
 			],
 			"options": {
-				"cwd": "${workspaceFolder}/sdk"
+				"cwd": "${workspaceFolder}"
 			}
 		}
 	],
