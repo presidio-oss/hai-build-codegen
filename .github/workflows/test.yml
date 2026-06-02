@@ -29,12 +29,12 @@ jobs:
               with:
                   node-version: 22
 
-            - name: Cache root dependencies
+            - name: Cache apps/vscode dependencies
               uses: actions/cache@v4
-              id: root-cache
+              id: vscode-cache
               with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  path: apps/vscode/node_modules
+                  key: ${{ runner.os }}-npm-vscode-${{ hashFiles('apps/vscode/package-lock.json') }}
 
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
@@ -43,9 +43,9 @@ jobs:
                   path: webview-ui/node_modules
                   key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
-            - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
-              run: npm ci
+            - name: Install apps/vscode dependencies
+              if: steps.vscode-cache.outputs.cache-hit != 'true'
+              run: cd apps/vscode && npm ci
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
@@ -74,12 +74,12 @@ jobs:
               with:
                   node-version: 22
 
-            - name: Cache root dependencies
+            - name: Cache apps/vscode dependencies
               uses: actions/cache@v4
-              id: root-cache
+              id: vscode-cache
               with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  path: apps/vscode/node_modules
+                  key: ${{ runner.os }}-npm-vscode-${{ hashFiles('apps/vscode/package-lock.json') }}
 
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
@@ -88,9 +88,9 @@ jobs:
                   path: webview-ui/node_modules
                   key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
-            - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
-              run: npm ci
+            - name: Install apps/vscode dependencies
+              if: steps.vscode-cache.outputs.cache-hit != 'true'
+              run: cd apps/vscode && npm ci
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
@@ -110,7 +110,7 @@ jobs:
               id: unit_tests_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
               run: |
-                  npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
+                  npx nyc --nycrc-path apps/vscode/.nycrc.unit.json --reporter=lcov npm run test:unit
 
             - name: Unit Tests - Non-Linux
               id: unit_tests_non_linux
@@ -157,19 +157,12 @@ jobs:
               with:
                   node-version: 22
                   
-            - name: Cache root dependencies
+            - name: Cache apps/vscode dependencies
               uses: actions/cache@v4
-              id: root-cache
+              id: vscode-cache
               with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  path: apps/vscode/node_modules
+                  key: ${{ runner.os }}-npm-vscode-${{ hashFiles('apps/vscode/package-lock.json') }}
 
             # Cache testing-platform dependencies
             - name: Cache testing-platform dependencies
@@ -179,13 +172,9 @@ jobs:
                 path: testing-platform/node_modules
                 key: ${{ runner.os }}-npm-testing-platform-${{ hashFiles('testing-platform/package-lock.json') }}
 
-            - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
-              run: npm ci
-
-            - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
-              run: cd webview-ui && npm ci
+            - name: Install apps/vscode dependencies
+              if: steps.vscode-cache.outputs.cache-hit != 'true'
+              run: cd apps/vscode && npm ci
 
             - name: Download ripgrep binaries
               run: npm run download-ripgrep
