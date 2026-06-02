@@ -42,15 +42,14 @@ We also welcome contributions to our [documentation](https://github.com/presidio
     ```bash
     code hai-build-codegen
     ```
-3. Install the necessary dependencies for the extension and webview-gui:
+3. Install [bun](https://bun.com)
+4. Install the necessary dependencies for the extension and webview-gui:
     ```bash
-    npm run install:all
+    cd apps/vscode && npm run install:all && cd ../..
+    cd sdk && bun run build && cd ..
     ```
-4. Generate Protocol Buffer files (required before first build):
-    ```bash
-    npm run protos
-    ```
-5. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
+5. Generate Protocol Buffer files (required before first build):
+6. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
 
 
 
@@ -62,7 +61,7 @@ We also welcome contributions to our [documentation](https://github.com/presidio
 2. Push your branch and create a PR on GitHub. Our CI will:
    - Run tests and checks
 3. Testing
-    - Run `npm run test` to run tests locally. 
+    - Run `cd apps/vscode && npm run test` to run tests locally. 
     - Before submitting PR, run `npm run format:fix` to format your code
 
 ### Extension
@@ -74,6 +73,7 @@ We also welcome contributions to our [documentation](https://github.com/presidio
     - If you dismissed the prompts, you can install them manually from the Extensions panel
 
 2. **Local Development**
+    - cd into the vscode extension, `cd apps/vscode`
     - Run `npm run install:all` to install dependencies
     - Run `npm run protos` to generate Protocol Buffer files (required before first build)
     - Run `npm run test` to run tests locally

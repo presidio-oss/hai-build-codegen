@@ -1,0 +1,7 @@
+# Test fixtures in upstream SDK — fake credentials used in unit tests
+sdk/apps/cli/src/tests/configs/claude-sonnet-4.6/data/settings/providers.json:jwt:9
+sdk/apps/cli/src/tests/configs/default/data/settings/providers.json:jwt:9
+sdk/packages/core/src/hub/server/index.test.ts:generic-api-key:299
+sdk/packages/core/src/hub/server/index.test.ts:generic-api-key:342
+sdk/packages/core/src/services/storage/provider-settings-legacy-migration.test.ts:generic-api-key:314
+sdk/packages/core/src/services/storage/provider-settings-legacy-migration.test.ts:generic-api-key:370
