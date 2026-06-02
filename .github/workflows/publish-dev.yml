@@ -29,35 +29,35 @@ jobs:
               with:
                   node-version: "lts/*"
 
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
+            # Cache apps/vscode dependencies
+            - name: Cache apps/vscode dependencies
               uses: actions/cache@v4
-              id: root-cache
+              id: vscode-cache
               with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  path: apps/vscode/node_modules
+                  key: ${{ runner.os }}-npm-vscode-${{ hashFiles('apps/vscode/package-lock.json') }}
 
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
+            # Cache webview-ui dependencies
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
               with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  path: apps/vscode/webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('apps/vscode/webview-ui/package-lock.json') }}
 
-            - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
-              run: npm ci
+            - name: Install apps/vscode dependencies
+              if: steps.vscode-cache.outputs.cache-hit != 'true'
+              run: cd apps/vscode && npm ci
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
-              run: cd webview-ui && npm ci
+              run: cd apps/vscode/webview-ui && npm ci
 
             - name: Build package
               run: |
                   # Set the package name and version from package.json or use default values
-                  PACKAGE_NAME="$(node -p "require('./package.json').name || 'hai-build-code-generator'")"
-                  BUILD_VERSION="$(node -p "require('./package.json').version || '0.0.0'")"
+                  PACKAGE_NAME="$(node -p "require('./apps/vscode/package.json').name || 'hai-build-code-generator'")"
+                  BUILD_VERSION="$(node -p "require('./apps/vscode/package.json').version || '0.0.0'")"
 
                   # Save the environment variables to GitHub Actions environment
                   echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
@@ -65,7 +65,7 @@ jobs:
 
                   # Build the VSIX package
                   echo "Output Package Name: $PACKAGE_NAME-$BUILD_VERSION.vsix"
-                  npx @vscode/vsce package --out "$PACKAGE_NAME-$BUILD_VERSION.vsix" --allow-package-secrets sendgrid
+                  cd apps/vscode && npx @vscode/vsce package --out "../../$PACKAGE_NAME-$BUILD_VERSION.vsix" --allow-package-secrets sendgrid
               env:
                   LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
                   LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}

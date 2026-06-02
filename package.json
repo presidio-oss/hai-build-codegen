@@ -15,6 +15,7 @@
 		"protos": "cd apps/vscode && npm run protos",
 		"storybook": "cd apps/vscode && npm run storybook",
 		"publish:marketplace": "cd apps/vscode && npm run publish:marketplace",
+		"publish:marketplace:prerelease": "cd apps/vscode && npm run publish:marketplace:prerelease",
 		"vscode:prepublish": "cd apps/vscode && npm run vscode:prepublish",
 		"changeset": "cd apps/vscode && npx changeset",
 		"version-packages": "cd apps/vscode && npx changeset version",
