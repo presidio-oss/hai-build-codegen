@@ -18,7 +18,7 @@
 		"vscode:prepublish": "cd apps/vscode && npm run vscode:prepublish",
 		"changeset": "cd apps/vscode && npx changeset",
 		"version-packages": "cd apps/vscode && npx changeset version",
-		"ci:check-all": "cd apps/vscode && npm-run-all -p check-types lint",
+		"ci:check-all": "cd apps/vscode && npm run check-types && npm run lint",
 		"ci:build": "cd apps/vscode && npm run ci:build",
 		"download-ripgrep": "cd apps/vscode && npm run download-ripgrep",
 		"compile-standalone": "cd apps/vscode && npm run compile-standalone",
