@@ -40,8 +40,8 @@ jobs:
               uses: actions/cache@v4
               id: webview-cache
               with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  path: apps/vscode/webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('apps/vscode/webview-ui/package-lock.json') }}
 
             - name: Install apps/vscode dependencies
               if: steps.vscode-cache.outputs.cache-hit != 'true'
@@ -49,7 +49,7 @@ jobs:
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
-              run: cd webview-ui && npm ci
+              run: cd apps/vscode/webview-ui && npm ci
 
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
@@ -85,8 +85,8 @@ jobs:
               uses: actions/cache@v4
               id: webview-cache
               with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  path: apps/vscode/webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('apps/vscode/webview-ui/package-lock.json') }}
 
             - name: Install apps/vscode dependencies
               if: steps.vscode-cache.outputs.cache-hit != 'true'
@@ -94,7 +94,7 @@ jobs:
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
-              run: cd webview-ui && npm ci
+              run: cd apps/vscode/webview-ui && npm ci
 
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
@@ -110,7 +110,7 @@ jobs:
               id: unit_tests_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
               run: |
-                  npx nyc --nycrc-path apps/vscode/.nycrc.unit.json --reporter=lcov npm run test:unit
+                  cd apps/vscode && npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
 
             - name: Unit Tests - Non-Linux
               id: unit_tests_non_linux
@@ -132,7 +132,7 @@ jobs:
               id: webview_tests
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
               run: |
-                  cd webview-ui
+                  cd apps/vscode/webview-ui
                   npm run test:coverage
 
             - name: Save Coverage Reports
@@ -142,8 +142,8 @@ jobs:
               with:
                   name: pr-coverage-reports
                   path: |
-                      coverage-unit/lcov.info
-                      webview-ui/coverage/lcov.info
+                      apps/vscode/coverage-unit/lcov.info
+                      apps/vscode/webview-ui/coverage/lcov.info
 
     test-platform-integration:
         needs: quality-checks
@@ -221,7 +221,7 @@ jobs:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                   # we can merge multiple files if necessary
                   files: |
-                    coverage-unit/lcov.info
+                    apps/vscode/coverage-unit/lcov.info
                   tag: unit:core
 
             - name: Upload webview-ui unit tests coverage to Qlty
@@ -230,9 +230,9 @@ jobs:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                   # we can merge multiple files if necessary
                   files: |
-                    webview-ui/coverage/lcov.info
+                    apps/vscode/webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
-                  add-prefix: webview-ui/
+                  add-prefix: apps/vscode/webview-ui/
 
             - name: Download test platform integration core coverage artifact
               uses: actions/download-artifact@v4
