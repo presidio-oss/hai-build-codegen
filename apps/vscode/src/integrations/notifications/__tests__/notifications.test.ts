@@ -120,7 +120,7 @@ describe("notifications", () => {
 		sinon.assert.calledOnce(execaStub)
 		expect(execaStub.firstCall.args[0]).to.equal("notify-send")
 		expect(execaStub.firstCall.args[1]).to.deep.equal([
-			"Cline",
+			"HAI",
 			"Approval Required\nnpm install (explicit approval required)",
 		])
 	})
