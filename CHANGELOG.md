@@ -1,18 +1,14 @@
 # Changelog
 
-## 3.13.6
+## [3.87.0]
 
-### Patch Changes
+### Added
 
-- 731f89a: merge from cline 3.78.0
+- Add MiniMax M3 model support.
 
-## 3.13.5
+### Fixed
 
-### Patch Changes
-
-- a04f9d3: merge from cline version 3.72.0
-
----
+- Update VS Code extension dependencies to resolve security issues in `@xmldom/xmldom`, `basic-ftp`, `axios`, `undici`, and other direct/transitive packages.
 
 ## [3.86.2]
 
@@ -2084,12 +2080,6 @@ Add Opus 4.1 through Claude Code
 
 ## [2.1.6]
 
-- Merged changes from Cline 3.0.0 (see [changelog](https://github.com/cline/cline/blob/main/CHANGELOG.md#300)).
-- Introduced HAI tasks, integrating Specif AI.
-- Added code indexing and context to identify relevant files during task execution.
-- Enabled support for various embedding model provider.
-- Implemented OWASP scanning for code changes during task execution.
-- Added quick actions to the welcome page.
 - Add LM Studio as an API provider option (make sure to start the LM Studio server to use it with the extension!)
 
 ## [2.1.5]
