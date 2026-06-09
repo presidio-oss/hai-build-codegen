@@ -197,6 +197,7 @@ export {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 } from "./extensions";
 export type {
 	AvailableRuntimeCommand,
@@ -384,7 +385,12 @@ export type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
-export { splitCoreSessionConfig } from "./runtime/host/runtime-host";
+export {
+	isSessionNotFoundError,
+	SESSION_NOT_FOUND_ERROR_CODE,
+	SessionNotFoundError,
+	splitCoreSessionConfig,
+} from "./runtime/host/runtime-host";
 export {
 	createTeamName,
 	DefaultRuntimeBuilder,
@@ -415,12 +421,14 @@ export {
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
+	isAutoUpdateEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
 	readGlobalSettings,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
@@ -435,6 +443,11 @@ export {
 	listPluginTools,
 	listPluginToolsWithDiagnostics,
 } from "./services/plugin-tools";
+export type {
+	PluginUninstallOptions,
+	PluginUninstallResult,
+} from "./services/plugin-uninstall";
+export { uninstallPlugin } from "./services/plugin-uninstall";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,

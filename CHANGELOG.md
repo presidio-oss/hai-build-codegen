@@ -1,18 +1,39 @@
 # Changelog
 
-## 3.13.6
+## [3.88.1]
 
-### Patch Changes
+### Added
 
-- 731f89a: merge from cline 3.78.0
+- Add a debug section in settings for Cline testers.
 
-## 3.13.5
+### Fixed
 
-### Patch Changes
+- Include the walkthrough markdown files in the VS Code extension package so the first-run walkthrough steps load correctly.
 
-- a04f9d3: merge from cline version 3.72.0
+## [3.88.0]
 
----
+### Added
+
+- Add the latest Fireworks AI serverless models and update the default Fireworks model to Kimi K2.6.
+
+### Fixed
+
+- Fix MCP server delete/add flows so settings writes do not cause the MCP server list to be emptied by the file watcher.
+- Remove stale Fireworks AI models and correct Fireworks model metadata and cache pricing.
+
+### Changed
+
+- Always use the upstream Cline recommended models endpoint instead of gating it behind a feature flag.
+
+## [3.87.0]
+
+### Added
+
+- Add MiniMax M3 model support.
+
+### Fixed
+
+- Update VS Code extension dependencies to resolve security issues in `@xmldom/xmldom`, `basic-ftp`, `axios`, `undici`, and other direct/transitive packages.
 
 ## [3.86.2]
 
@@ -2084,12 +2105,6 @@ Add Opus 4.1 through Claude Code
 
 ## [2.1.6]
 
-- Merged changes from Cline 3.0.0 (see [changelog](https://github.com/cline/cline/blob/main/CHANGELOG.md#300)).
-- Introduced HAI tasks, integrating Specif AI.
-- Added code indexing and context to identify relevant files during task execution.
-- Enabled support for various embedding model provider.
-- Implemented OWASP scanning for code changes during task execution.
-- Added quick actions to the welcome page.
 - Add LM Studio as an API provider option (make sure to start the LM Studio server to use it with the extension!)
 
 ## [2.1.5]
