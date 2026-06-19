@@ -8,6 +8,7 @@ import DetailedView from "./components/hai/DetailedView"
 import { HaiTasksList } from "./components/hai/hai-tasks-list"
 import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
+import { openClinePassSubscriptionIfPending } from "./components/onboarding/clinePassSubscribe"
 import OnboardingView from "./components/onboarding/OnboardingView"
 import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
@@ -353,6 +354,14 @@ const AppContent = () => {
 
 	// Hide function for experts
 	const _hideExperts = useCallback(() => setShowExperts(false), [])
+
+	// Open the ClinePass subscription page once auth completes. Lives here (not in OnboardingView)
+	// because handleAuthCallback unmounts onboarding before the clineUser update arrives.
+	useEffect(() => {
+		if (clineUser?.uid) {
+			openClinePassSubscriptionIfPending(clineUser.appBaseUrl)
+		}
+	}, [clineUser?.uid, clineUser?.appBaseUrl])
 
 	if (!didHydrateState) {
 		return null

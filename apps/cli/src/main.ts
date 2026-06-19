@@ -22,6 +22,7 @@ import {
 import {
 	getCliFeatureFlagsService,
 	refreshCliFeatureFlagsInBackground,
+	setCliFeatureFlagsAccountContext,
 } from "./utils/feature-flags";
 import {
 	configureSandboxEnvironment,
@@ -595,7 +596,12 @@ export async function runCli(): Promise<void> {
 	const dashboardCmd = program
 		.command("dashboard")
 		.description("Start the Cline Hub dashboard and open it in a browser")
+		.option("--config <dir>", "configuration directory")
 		.option("-c, --cwd <path>", "Workspace root", process.cwd())
+		.option(
+			"--data-dir <dir>",
+			"Use isolated local state at <dir> instead of ~/.cline (enables sandbox mode)",
+		)
 		.option("--host <host>", "Dashboard bind host")
 		.option("--port <port>", "Dashboard HTTP/WebSocket port")
 		.option("--public-url <url>", "Public dashboard URL")
@@ -603,7 +609,9 @@ export async function runCli(): Promise<void> {
 		.option("--no-open", "Start the dashboard without opening a browser")
 		.action(async () => {
 			const opts = dashboardCmd.opts<{
+				config?: string;
 				cwd?: string;
+				dataDir?: string;
 				host?: string;
 				port?: string;
 				publicUrl?: string;
@@ -612,7 +620,9 @@ export async function runCli(): Promise<void> {
 			}>();
 			const { runDashboardCommand } = await import("./commands/dashboard");
 			ctx.exitCode = await runDashboardCommand({
+				configDir: opts.config,
 				cwd: opts.cwd,
+				dataDir: opts.dataDir,
 				host: opts.host,
 				port: opts.port,
 				publicUrl: opts.publicUrl,
@@ -910,6 +920,12 @@ export async function runCli(): Promise<void> {
 	};
 	registerDisposable(stopUserInstructionService);
 	try {
+		const persistedClineAccountId = providerSettingsManager
+			.getProviderSettings("cline")
+			?.auth?.accountId?.trim();
+		if (persistedClineAccountId) {
+			setCliFeatureFlagsAccountContext({ id: persistedClineAccountId });
+		}
 		refreshCliFeatureFlagsInBackground();
 		const lastUsedProviderSettings =
 			providerSettingsManager.getLastUsedProviderSettings({
