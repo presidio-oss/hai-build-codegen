@@ -3,16 +3,66 @@
  * Tests skill discovery, override resolution, toggle filtering, and content loading
  */
 
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { expect } from "chai"
-import * as fs from "fs"
-import { afterEach, beforeEach, describe, it } from "mocha"
+import * as actualFsPromises from "fs/promises"
 import * as path from "path"
 import * as sinon from "sinon"
 
-import * as disk from "@/core/storage/disk"
+import * as actualSkillDirectories from "@/core/storage/skill-directories"
 import { Logger } from "@/shared/services/Logger"
-import * as fsUtils from "@/utils/fs"
-import { discoverSkills, getAvailableSkills, getSkillContent, parseRemoteSkillEntries } from "../skills"
+import * as actualFsUtils from "@/utils/fs"
+
+// bun loads real ESM, so sinon cannot stub the `@utils/fs`,
+// `@core/storage/skill-directories`, or the `fs/promises` namespace exports
+// ("ES Modules cannot be stubbed"). Crucially, under bun `fs.promises` and the
+// `fs/promises` module are NOT the same object, so stubbing `fs.promises.X`
+// (which worked under mocha/ts-node) does not affect the SUT's
+// `import * as fs from "fs/promises"` bindings. Inject module-level sinon stubs
+// via bun's mock.module so the full sinon stub API (.withArgs/.resolves/etc.)
+// keeps working through the exact specifiers the SUT imports.
+const fileExistsAtPathStub = sinon.stub()
+const isDirectoryStub_ = sinon.stub()
+const getSkillsDirectoriesForScanStub = sinon.stub()
+const readdirStub_ = sinon.stub()
+const statStub_ = sinon.stub()
+const readFileStub_ = sinon.stub()
+const writeFileStub_ = sinon.stub()
+const fsUtilsMock = () => ({
+	...actualFsUtils,
+	fileExistsAtPath: fileExistsAtPathStub,
+	isDirectory: isDirectoryStub_,
+})
+const skillDirsMock = () => ({
+	...actualSkillDirectories,
+	getSkillsDirectoriesForScan: getSkillsDirectoriesForScanStub,
+})
+const fsPromisesMockNamespace = {
+	...actualFsPromises,
+	readdir: readdirStub_,
+	stat: statStub_,
+	readFile: readFileStub_,
+	writeFile: writeFileStub_,
+}
+const fsPromisesMock = () => ({ ...fsPromisesMockNamespace, default: fsPromisesMockNamespace })
+// The SUT imports via the `@utils/*` and `@core/*` tsconfig path aliases;
+// register both the `@/`-prefixed and bare-alias forms to be safe.
+mock.module("@utils/fs", fsUtilsMock)
+mock.module("@/utils/fs", fsUtilsMock)
+mock.module("@core/storage/skill-directories", skillDirsMock)
+mock.module("@/core/storage/skill-directories", skillDirsMock)
+mock.module("fs/promises", fsPromisesMock)
+mock.module("node:fs/promises", fsPromisesMock)
+
+import { parseYamlFrontmatter } from "../frontmatter"
+import {
+	discoverSkills,
+	getAvailableSkills,
+	getSkillContent,
+	parseRemoteSkillEntries,
+	setSkillDisabledInFrontmatter,
+	updateSkillMarkdownDisabledState,
+} from "../skills"
 
 describe("Skills Utility Functions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -32,14 +82,23 @@ describe("Skills Utility Functions", () => {
 		// Stub Logger.warn to avoid noise in test output
 		sandbox.stub(Logger, "warn")
 
-		// Stub filesystem utilities
-		fileExistsStub = sandbox.stub(fsUtils, "fileExistsAtPath")
-		isDirectoryStub = sandbox.stub(fsUtils, "isDirectory")
-		readdirStub = sandbox.stub(fs.promises, "readdir")
-		statStub = sandbox.stub(fs.promises, "stat")
-		readFileStub = sandbox.stub(fs.promises, "readFile")
-		sandbox.stub(disk, "getSkillsDirectoriesForScan").returns([
-			{ path: path.join(TEST_CWD, ".hairules", "skills"), source: "project" },
+		// Reset the module-level sinon stubs (injected via mock.module above) and
+		// re-point the per-test handles at them.
+		fileExistsAtPathStub.reset()
+		isDirectoryStub_.reset()
+		getSkillsDirectoriesForScanStub.reset()
+		readdirStub_.reset()
+		statStub_.reset()
+		readFileStub_.reset()
+		writeFileStub_.reset()
+		fileExistsStub = fileExistsAtPathStub
+		isDirectoryStub = isDirectoryStub_
+		readdirStub = readdirStub_
+		statStub = statStub_
+		readFileStub = readFileStub_
+
+		getSkillsDirectoriesForScanStub.returns([
+			{ path: path.join(TEST_CWD, ".clinerules", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".cline", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".claude", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".agents", "skills"), source: "project" },
@@ -80,45 +139,74 @@ Instructions here`)
 			expect(skills[0].source).to.equal("global")
 		})
 
-		it("should discover skills from project .hairules/skills directory", async () => {
-			// Set up stubs for first three project skill directories (.hairules, .cline, .claude)
-			const projectDirs = [".hairules", ".cline", ".claude"]
-			const skillName = "explaining-code"
+		it("should discover skills from project .clinerules/skills directory", async () => {
+			const projectSkillsDir = path.join(TEST_CWD, ".clinerules", "skills")
+			const skillDir = path.join(projectSkillsDir, "explaining-code")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
 
-			for (const dir of projectDirs) {
-				const projectSkillsDir = path.join(TEST_CWD, dir, "skills")
-				const skillDir = path.join(projectSkillsDir, skillName)
-				const skillMdPath = path.join(skillDir, "SKILL.md")
-
-				fileExistsStub.withArgs(projectSkillsDir).resolves(true)
-				fileExistsStub.withArgs(skillMdPath).resolves(true)
-				isDirectoryStub.withArgs(projectSkillsDir).resolves(true)
-				readdirStub.withArgs(projectSkillsDir).resolves([skillName])
-				statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
-				readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
+			fileExistsStub.withArgs(projectSkillsDir).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(projectSkillsDir).resolves(true)
+			readdirStub.withArgs(projectSkillsDir).resolves(["explaining-code"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
 name: explaining-code
 description: Explains code with diagrams and analogies
 ---
 Use analogies and ASCII diagrams when explaining code.`)
-			}
 
 			const skills = await discoverSkills(TEST_CWD)
 
-			// All three project skill directory constants (.hairules, .cline, .claude) discover the same skill,
-			// so the skill is discovered 3 times. Deduplication happens in getAvailableSkills.
-			expect(skills).to.have.lengthOf(3)
+			expect(skills).to.have.lengthOf(1)
 			expect(skills[0].name).to.equal("explaining-code")
 			expect(skills[0].source).to.equal("project")
-
-			// Verify deduplication works correctly
-			const availableSkills = getAvailableSkills(skills)
-			expect(availableSkills).to.have.lengthOf(1)
-			expect(availableSkills[0].name).to.equal("explaining-code")
 		})
 
-		// Note: The tests for .cline/skills and .claude/skills directories have been removed
-		// because all three project skill directory constants now point to the same
-		// .hairules/skills directory. The main test above covers the project skills discovery.
+		it("should discover skills from project .cline/skills directory", async () => {
+			const clineSkillsDir = path.join(TEST_CWD, ".cline", "skills")
+			const skillDir = path.join(clineSkillsDir, "debugging")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(clineSkillsDir).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(clineSkillsDir).resolves(true)
+			readdirStub.withArgs(clineSkillsDir).resolves(["debugging"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
+name: debugging
+description: Debug code systematically
+---
+Use systematic debugging approaches.`)
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(1)
+			expect(skills[0].name).to.equal("debugging")
+			expect(skills[0].source).to.equal("project")
+		})
+
+		it("should discover skills from project .claude/skills directory", async () => {
+			const claudeSkillsDir = path.join(TEST_CWD, ".claude", "skills")
+			const skillDir = path.join(claudeSkillsDir, "coding")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(claudeSkillsDir).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(claudeSkillsDir).resolves(true)
+			readdirStub.withArgs(claudeSkillsDir).resolves(["coding"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
+name: coding
+description: Write clean code
+---
+Follow best practices.`)
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(1)
+			expect(skills[0].name).to.equal("coding")
+			expect(skills[0].source).to.equal("project")
+		})
 
 		it("should discover skills from project .agents/skills directory", async () => {
 			const agentsSkillsDir = path.join(TEST_CWD, ".agents", "skills")
@@ -209,8 +297,8 @@ description: Global coding skill
 ---
 Global instructions`)
 
-			// Setup project skill with same name (lower priority) - now uses .hairules/skills
-			const projectSkillsDir = path.join(TEST_CWD, ".hairules", "skills")
+			// Setup project skill with same name (lower priority)
+			const projectSkillsDir = path.join(TEST_CWD, ".clinerules", "skills")
 			const projectSkillDir = path.join(projectSkillsDir, "coding")
 			const projectSkillMdPath = path.join(projectSkillDir, "SKILL.md")
 
@@ -249,8 +337,8 @@ description: A global skill
 ---
 Content`)
 
-			// Setup project skill with different name (now uses .hairules/skills)
-			const projectSkillsDir = path.join(TEST_CWD, ".hairules", "skills")
+			// Setup project skill with different name
+			const projectSkillsDir = path.join(TEST_CWD, ".clinerules", "skills")
 			const projectSkillDir = path.join(projectSkillsDir, "project-skill")
 			const projectSkillMdPath = path.join(projectSkillDir, "SKILL.md")
 
@@ -268,8 +356,6 @@ Content`)
 			const allSkills = await discoverSkills(TEST_CWD)
 			const skills = getAvailableSkills(allSkills)
 
-			// Note: The project skill will be discovered 3 times (once for each constant pointing to .hairules/skills)
-			// but getAvailableSkills deduplicates by name, so we get 2 unique skills
 			expect(skills).to.have.lengthOf(2)
 			const names = skills.map((s) => s.name)
 			expect(names).to.include("global-skill")
@@ -627,5 +713,125 @@ description: Test
 				sinon.assert.notCalled(readFileStub)
 			})
 		})
+	})
+})
+
+describe("updateSkillMarkdownDisabledState", () => {
+	it("adds disabled: true when disabling a skill with existing frontmatter", () => {
+		const input = ["---", "name: my-skill", "description: A skill", "---", "Body here"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, false)
+		expect(output).to.contain("disabled: true")
+		expect(output).to.contain("name: my-skill")
+		expect(output).to.contain("Body here")
+	})
+
+	it("removes disabled flag when enabling a previously-disabled skill", () => {
+		const input = ["---", "name: my-skill", "description: A skill", "disabled: true", "---", "Body"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, true)
+		expect(output).to.not.contain("disabled")
+		expect(output).to.contain("name: my-skill")
+		expect(output).to.contain("Body")
+	})
+
+	it("also clears a stale enabled: false when enabling", () => {
+		const input = ["---", "name: my-skill", "enabled: false", "---", "Body"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, true)
+		expect(output).to.not.contain("enabled: false")
+	})
+
+	it("drops the frontmatter block entirely when enabling leaves it empty", () => {
+		const input = ["---", "disabled: true", "---", "Body only"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, true)
+		expect(output).to.equal("Body only")
+	})
+
+	it("returns content unchanged when enabling a doc with no frontmatter", () => {
+		const input = "Just body, no frontmatter"
+		expect(updateSkillMarkdownDisabledState(input, true)).to.equal(input)
+	})
+
+	it("is idempotent: disabling an already-disabled skill keeps disabled: true once", () => {
+		const input = ["---", "name: s", "disabled: true", "---", "B"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, false)
+		expect(output.match(/disabled: true/g)).to.have.lengthOf(1)
+	})
+
+	// Frontmatter block whose YAML is genuinely invalid (asserted below). The
+	// `---` markers are well-formed so parseYamlFrontmatter detects frontmatter
+	// and then fails to parse it, exercising the parseError branch.
+	const MALFORMED_FRONTMATTER = ["---", "name: s", "description: : : bad", "  - nope", "---", "Body"].join("\n")
+
+	it("uses a fixture whose frontmatter YAML is actually invalid", () => {
+		// Guards the two tests below from rotting into false positives: if this
+		// fixture ever became valid YAML, updateSkillMarkdownDisabledState would
+		// take a different (rewriting) path and the "untouched" assertions could
+		// pass for the wrong reason.
+		const parsed = parseYamlFrontmatter(MALFORMED_FRONTMATTER)
+		expect(parsed.hadFrontmatter).to.be.true
+		expect(parsed.parseError, "fixture frontmatter should be invalid YAML").to.be.a("string")
+	})
+
+	it("leaves malformed-frontmatter files untouched when disabling (no double header)", () => {
+		// parseYamlFrontmatter fails open and returns the full original document
+		// as the body. Disabling must not prepend a second `---` block and corrupt
+		// the file.
+		const output = updateSkillMarkdownDisabledState(MALFORMED_FRONTMATTER, false)
+		expect(output).to.equal(MALFORMED_FRONTMATTER)
+		// Exactly one frontmatter opener/closer pair, not two.
+		expect(output.match(/^---$/gm)).to.have.lengthOf(2)
+	})
+
+	it("leaves malformed-frontmatter files untouched when enabling", () => {
+		expect(updateSkillMarkdownDisabledState(MALFORMED_FRONTMATTER, true)).to.equal(MALFORMED_FRONTMATTER)
+	})
+})
+
+describe("setSkillDisabledInFrontmatter", () => {
+	let sandbox: sinon.SinonSandbox
+	let readFileStub: sinon.SinonStub
+	let writeFileStub: sinon.SinonStub
+
+	beforeEach(() => {
+		sandbox = sinon.createSandbox()
+		sandbox.stub(Logger, "warn")
+		// Use the module-level fs/promises stubs (mock.module above) since under
+		// bun fs.promises !== the `fs/promises` module the SUT imports.
+		readFileStub_.reset()
+		writeFileStub_.reset()
+		readFileStub = readFileStub_
+		writeFileStub = writeFileStub_
+		writeFileStub.resolves()
+	})
+
+	afterEach(() => sandbox.restore())
+
+	it("writes disabled: true to the SKILL.md when disabling a disk skill", async () => {
+		const skillPath = path.join("/home", "user", ".cline", "skills", "s", "SKILL.md")
+		readFileStub.withArgs(skillPath, "utf-8").resolves(["---", "name: s", "description: d", "---", "Body"].join("\n"))
+
+		const ok = await setSkillDisabledInFrontmatter(skillPath, false)
+
+		expect(ok).to.be.true
+		sinon.assert.calledOnce(writeFileStub)
+		const written = writeFileStub.getCall(0).args[1] as string
+		expect(written).to.contain("disabled: true")
+	})
+
+	it("does not write for remote skills (no backing file)", async () => {
+		const ok = await setSkillDisabledInFrontmatter("remote:Some Skill", false)
+		expect(ok).to.be.false
+		sinon.assert.notCalled(readFileStub)
+		sinon.assert.notCalled(writeFileStub)
+	})
+
+	it("skips the write when content is unchanged", async () => {
+		const skillPath = path.join("/home", "user", ".cline", "skills", "s", "SKILL.md")
+		// Already disabled; disabling again yields identical content.
+		readFileStub.withArgs(skillPath, "utf-8").resolves(["---", "name: s", "disabled: true", "---", "B"].join("\n"))
+
+		const ok = await setSkillDisabledInFrontmatter(skillPath, false)
+
+		expect(ok).to.be.true
+		sinon.assert.notCalled(writeFileStub)
 	})
 })

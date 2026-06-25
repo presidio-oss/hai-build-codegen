@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { Controller } from "@core/controller/index"
 import axios from "axios"
+import { readFile } from "fs/promises"
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineExtensionContext } from "@/shared/cline"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -78,14 +78,10 @@ export abstract class WebviewProvider {
 		// The JS file from the React build output
 		const scriptUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.js")
 
-		// The CSS file from the React build output
+		// The CSS file from the React build output. The webview's own index.css
+		// @imports @vscode/codicons, so the codicon @font-face + codicon.ttf are
+		// bundled into these build assets — no separate codicons <link> needed.
 		const stylesUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.css")
-
-		// The codicon font from the React build output
-		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
-		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
-		// don't forget to add font-src ${webview.cspSource};
-		const codiconsUrl = this.getExtensionUrl("node_modules", "@vscode", "codicons", "dist", "codicon.css")
 
 		// Use a nonce to only allow a specific script to be run.
 		/*
@@ -109,14 +105,13 @@ export abstract class WebviewProvider {
 				<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 				<meta name="theme-color" content="#000000">
 				<link rel="stylesheet" type="text/css" href="${stylesUrl}">
-				<link href="${codiconsUrl}" rel="stylesheet" />
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none';
 					connect-src https://*.posthog.com https://*.cline.bot; 
 					font-src ${this.getCspSource()} data:; 
 					style-src ${this.getCspSource()} 'unsafe-inline'; 
 					img-src ${this.getCspSource()} https: data:; 
 					script-src 'nonce-${nonce}' 'unsafe-eval';">
-				<title>HAI</title>
+				<title>Cline</title>
 			</head>
 			<body>
 				<noscript>You need to enable JavaScript to run this app.</noscript>
@@ -167,14 +162,13 @@ export abstract class WebviewProvider {
 		// Check if local dev server is running.
 		try {
 			await axios.get(`http://${localServerUrl}`)
-		} catch (error) {
-			Logger.warn(`[getHMRHtmlContent] Local webview dev server check failed at http://${localServerUrl}`, error)
+		} catch (_error) {
 			// Only show the error message when in development mode.
 			if (process.env.IS_DEV) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message:
-						"HAI: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+						"Cline: Local webview dev server is not running, HMR will not work. Please run 'bun run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
 				})
 			}
 
@@ -183,7 +177,6 @@ export abstract class WebviewProvider {
 
 		const nonce = getNonce()
 		const stylesUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.css")
-		const codiconsUrl = this.getExtensionUrl("node_modules", "@vscode", "codicons", "dist", "codicon.css")
 
 		const scriptEntrypoint = "src/main.tsx"
 		const scriptUrl = `http://${localServerUrl}/${scriptEntrypoint}`
@@ -216,8 +209,7 @@ export abstract class WebviewProvider {
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
 					<link rel="stylesheet" type="text/css" href="${stylesUrl}">
-					<link href="${codiconsUrl}" rel="stylesheet" />
-					<title>HAI</title>
+					<title>Cline</title>
 				</head>
 				<body>
 					<div id="root"></div>

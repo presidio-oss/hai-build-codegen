@@ -46,13 +46,13 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	}, [userOrganizations])
 
 	useEffect(() => {
-		console.log("Extension: HAIAuthContext: user updated:", user?.uid)
+		console.log("Extension: ClineAuthContext: user updated:", user?.uid)
 	}, [user?.uid])
 
 	// Handle auth status update events
 	useEffect(() => {
 		const cancelSubscription = AccountServiceClient.subscribeToAuthStatusUpdate(EmptyRequest.create(), {
-			onResponse: async (response) => {
+			onResponse: async (response: any) => {
 				setUser((oldUser) => {
 					if (!response?.user?.uid) {
 						return null
@@ -98,31 +98,41 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 export const useClineAuth = () => {
 	const context = useContext(ClineAuthContext)
 	if (context === undefined) {
-		throw new Error("useHAIAuth must be used within a HAIAuthProvider")
+		throw new Error("useClineAuth must be used within a ClineAuthProvider")
 	}
 	return context
 }
 
 export const useClineSignIn = () => {
 	const [isLoading, setIsLoading] = useState(false)
+	const [authStatusMessage, setAuthStatusMessage] = useState<string | null>(null)
 
 	const handleSignIn = useCallback(() => {
 		try {
 			setIsLoading(true)
+			setAuthStatusMessage(null)
 
 			AccountServiceClient.accountLoginClicked(EmptyRequest.create())
-				.catch((err) => console.error("Failed to get login URL:", err))
+				.then((response) => {
+					setAuthStatusMessage(response.value || "Complete sign-in in your browser.")
+				})
+				.catch((err) => {
+					console.error("Failed to start login:", err)
+					setAuthStatusMessage("Unable to start sign-in. Please try again.")
+				})
 				.finally(() => {
 					setIsLoading(false)
 				})
 		} catch (error) {
 			console.error("Error signing in:", error)
+			setAuthStatusMessage("Unable to start sign-in. Please try again.")
 			setIsLoading(false)
 		}
 	}, [])
 
 	return {
 		isLoginLoading: isLoading,
+		authStatusMessage,
 		handleSignIn,
 	}
 }
