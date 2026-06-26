@@ -204,6 +204,8 @@ export type {
 	ClineCoreOptions,
 	ClineCoreSettingsApi,
 	ClineCoreStartInput,
+	CompareCheckpointInput,
+	CompareCheckpointResult,
 	HubOptions,
 	RemoteOptions,
 	RestoreInput,
@@ -547,6 +549,7 @@ export {
 } from "./services/storage/team-store";
 export { resolveCoreDistinctId } from "./services/telemetry";
 export type {
+	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureCompactionExecutedProperties,
 	CaptureCompactionSkippedProperties,
 	TelemetryAgentIdentityProperties,
@@ -561,6 +564,7 @@ export {
 	CORE_TELEMETRY_EVENTS,
 	captureAgentCreated,
 	captureAgentTeamCreated,
+	captureAgentUnexpectedReasoningTokens,
 	captureAuthFailed,
 	captureAuthLoggedOut,
 	captureAuthStarted,
@@ -630,7 +634,18 @@ export {
 	generateWorkspaceInfoWithDiagnostics,
 	normalizeWorkspacePath,
 } from "./services/workspace/workspace-manifest";
-export { readSessionCheckpointHistory } from "./session/checkpoint-restore";
+export {
+	buildCheckpointWorkspaceDiff,
+	compareCheckpointToWorkspace,
+	createCheckpointComparePlan,
+	type CheckpointComparePlan,
+	type CheckpointContentDiff,
+	type CheckpointWorkspaceCompareResult,
+} from "./session/checkpoint-diff";
+export {
+	findCheckpointForRun,
+	readSessionCheckpointHistory,
+} from "./session/checkpoint-restore";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,

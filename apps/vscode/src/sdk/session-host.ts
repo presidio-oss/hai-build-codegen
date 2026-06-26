@@ -7,6 +7,8 @@ import type {
 	PendingPromptsDeleteInput,
 	PendingPromptsListInput,
 	PendingPromptsUpdateInput,
+	RestoreInput,
+	RestoreResult,
 	SendSessionInput,
 	SessionAccumulatedUsage,
 	SessionHistoryRecord,
@@ -31,6 +33,7 @@ export interface SdkSessionHost {
 	listHistory(options?: ClineCoreListHistoryOptions): Promise<SessionHistoryRecord[]>
 	delete(sessionId: string): Promise<boolean>
 	readMessages(sessionId: string): Promise<SdkInitialMessages>
+	restore(input: RestoreInput): Promise<RestoreResult>
 	update(
 		sessionId: string,
 		updates: {

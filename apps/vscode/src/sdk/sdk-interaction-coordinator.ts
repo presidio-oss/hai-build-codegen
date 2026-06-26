@@ -1,10 +1,11 @@
+import type { ConsecutiveMistakeLimitContext, ConsecutiveMistakeLimitDecision } from "@cline/shared"
 import type { ClineAskQuestion, ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
-import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
+import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 export interface ToolApprovalRequest {
 	agentId: string
@@ -40,6 +41,7 @@ export interface SdkInteractionCoordinatorOptions {
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
+	private pendingMistakeLimitResolve: ((decision: ConsecutiveMistakeLimitDecision) => void) | undefined
 	private pendingToolApprovalMessage:
 		| {
 				toolCallId: string
@@ -49,6 +51,31 @@ export class SdkInteractionCoordinator {
 		| undefined
 
 	constructor(private readonly options: SdkInteractionCoordinatorOptions) {}
+
+	async handleConsecutiveMistakeLimitReached(
+		context: ConsecutiveMistakeLimitContext,
+	): Promise<ConsecutiveMistakeLimitDecision> {
+		const detail = context.details?.trim()
+		const latest = detail ? `${context.reason}: ${detail}` : `${context.reason} at iteration ${context.iteration}`
+		const askMessage: ClineMessage = {
+			ts: this.nextMessageTs(),
+			type: "ask",
+			ask: "mistake_limit_reached",
+			text: `Cline ran into repeated tool errors (${context.consecutiveMistakes}/${context.maxConsecutiveMistakes}).\n\nLatest: ${latest}`,
+			partial: false,
+		}
+
+		this.options.messages.appendAndEmit([askMessage], {
+			type: "status",
+			payload: { sessionId: this.options.getSessionId(), status: "running" },
+		})
+		this.options.setTurnPhase?.("error", askMessage.ts)
+		await this.options.postStateToWebview()
+
+		return new Promise<ConsecutiveMistakeLimitDecision>((resolve) => {
+			this.pendingMistakeLimitResolve = resolve
+		})
+	}
 
 	async handleRequestToolApproval(request: ToolApprovalRequest): Promise<{ approved: boolean; reason?: string }> {
 		if (request.policy.autoApprove === true || this.options.shouldAutoApproveTool?.(request) === true) {
@@ -107,23 +134,16 @@ export class SdkInteractionCoordinator {
 
 		const resolve = this.pendingToolApprovalResolve
 		const pendingMessage = this.pendingToolApprovalMessage
-		this.pendingToolApprovalResolve = undefined
-		this.pendingToolApprovalMessage = undefined
 
 		if (responseType === "messageResponse") {
-			Logger.log("[SdkController] Rejecting pending tool approval from user message and routing message as follow-up")
-			this.options.setTurnPhase?.("streaming")
-			if (pendingMessage) {
-				this.options.recordDeniedToolApproval?.(
-					pendingMessage.toolCallId,
-					pendingMessage.toolName,
-					USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON,
-				)
-			}
-			resolve({ approved: false, reason: USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON })
-			// The approval was resolved, but the chat message still needs normal follow-up routing.
+			Logger.log("[SdkController] Leaving pending tool approval open and routing user message as queued follow-up")
+			this.options.setTurnPhase?.("awaiting_approval", pendingMessage?.messageTs)
+			// The approval remains pending. The chat message still needs normal follow-up routing.
 			return false
 		}
+
+		this.pendingToolApprovalResolve = undefined
+		this.pendingToolApprovalMessage = undefined
 
 		const approved = responseType === "yesButtonClicked"
 		Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
@@ -175,8 +195,49 @@ export class SdkInteractionCoordinator {
 		return true
 	}
 
+	resolvePendingMistakeLimit(prompt: string | undefined, responseType: ClineAskResponse | undefined): boolean {
+		if (!this.pendingMistakeLimitResolve) {
+			return false
+		}
+
+		const resolve = this.pendingMistakeLimitResolve
+		this.pendingMistakeLimitResolve = undefined
+		this.options.setTurnPhase?.("streaming")
+
+		if (responseType === "noButtonClicked") {
+			resolve({ action: "stop", reason: "stopped after mistake_limit_reached prompt" })
+			return true
+		}
+
+		const trimmedPrompt = prompt?.trim()
+		if (trimmedPrompt) {
+			const userMessage: ClineMessage = {
+				ts: this.nextMessageTs(),
+				type: "say",
+				say: "user_feedback",
+				text: trimmedPrompt,
+				partial: false,
+			}
+			this.options.messages.appendAndEmit([userMessage], {
+				type: "status",
+				payload: { sessionId: this.options.getSessionId(), status: "running" },
+			})
+		}
+
+		const guidance = trimmedPrompt
+			? `mistake_limit_reached: ${trimmedPrompt}`
+			: "mistake_limit_reached: retry with a different approach, validate tool parameters before calls, and avoid repeating failed steps."
+
+		resolve({ action: "continue", guidance })
+		return true
+	}
+
 	clearPending(reason: string): void {
 		this.pendingAskResolve = undefined
+		if (this.pendingMistakeLimitResolve) {
+			this.pendingMistakeLimitResolve({ action: "stop", reason })
+			this.pendingMistakeLimitResolve = undefined
+		}
 		const pendingMessage = this.pendingToolApprovalMessage
 		this.pendingToolApprovalMessage = undefined
 		if (this.pendingToolApprovalResolve) {

@@ -5,11 +5,11 @@
 // cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
 // the webview's gRPC streams.
 import * as fs from "node:fs/promises"
-import * as os from "node:os"
 import * as path from "node:path"
 import {
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
+	resolveDefaultMcpSettingsPath,
 	type PreparedRemoteConfigCoreIntegration,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
@@ -26,6 +26,7 @@ import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
+import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
 import { refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
@@ -52,6 +53,12 @@ import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
 import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
+import {
+	findVisibleCheckpointUserMessageByRun,
+	getCheckpointRunCountForMessage,
+	isVisibleCheckpointUserMessage,
+} from "./sdk-checkpoints"
+import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
@@ -148,6 +155,7 @@ export class Controller {
 	private followups: SdkFollowupCoordinator
 	private taskControl: SdkTaskControlCoordinator
 	private taskStart: SdkTaskStartCoordinator
+	private compaction: SdkCompactionCoordinator
 	private sessionEvents: SdkSessionEventCoordinator
 	private sessionHistory: SdkSessionHistoryLoader
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
@@ -179,6 +187,7 @@ export class Controller {
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
 	private pendingClineAuthRetryPrompt?: string
+	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
 
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
 	private remoteConfigTimer?: NodeJS.Timeout
@@ -223,8 +232,7 @@ export class Controller {
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			async () => {
-				const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-				const settingsDir = path.join(clineDir, "data", "settings")
+				const settingsDir = path.dirname(resolveDefaultMcpSettingsPath())
 				await fs.mkdir(settingsDir, { recursive: true })
 				return settingsDir
 			},
@@ -254,6 +262,7 @@ export class Controller {
 				this.mode.queueSwitchToActMode()
 			},
 			shouldStopAfterModeSwitch: () => this.mode.hasPendingModeChange(),
+			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
 		})
 		this.interactions = new SdkInteractionCoordinator({
 			messages: this.messages,
@@ -452,6 +461,17 @@ export class Controller {
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			isClineProviderActive: () => this.isClineProviderActive(),
 			emitClineAuthError: (task) => this.emitClineAuthError(task),
+			postStateToWebview: () => this.postStateToWebview(),
+		})
+		this.compaction = new SdkCompactionCoordinator({
+			stateManager: this.stateManager,
+			sessions: this.sessions,
+			messages: this.messages,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			getTask: () => this.task,
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			buildStartSessionInput,
+			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.sessionEvents = new SdkSessionEventCoordinator({
@@ -968,6 +988,17 @@ export class Controller {
 		stubWarn("cancelBackgroundCommand")
 	}
 
+	/**
+	 * Manually compact (condense) the active task's conversation. Triggered by
+	 * the compact button and the `/compact` (alias `/smol`) slash command.
+	 * Mirrors the CLI's `/compact` local command: runs an SDK manual compaction
+	 * and restarts the session with the compacted transcript so the model's
+	 * working context is actually reduced.
+	 */
+	async compactTask(): Promise<void> {
+		await this.compaction.compactTask()
+	}
+
 	async clearTask(): Promise<void> {
 		this.pendingClineAuthRetryPrompt = undefined
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
@@ -997,6 +1028,8 @@ export class Controller {
 			return
 		}
 
+		const turnStateBefore = this.turnStateTracker.get()
+
 		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
 		// new agent turn — move the authoritative phase to "streaming" so the footer shows
 		// Thinking + Cancel (and not the stale resumable/completed/awaiting_followup buttons or the
@@ -1006,7 +1039,7 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
-		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse)
+		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
 	}
 
 	async editMessageAndRegenerate(input: {
@@ -1037,91 +1070,207 @@ export class Controller {
 			throw new Error("Only user messages can be edited")
 		}
 
-		if (input.restoreWorkspace) {
-			HostProvider.window.showMessage({
-				type: ShowMessageType.INFORMATION,
-				message: "Workspace restore is not available for edited-message regeneration yet. Regenerating chat only.",
-			})
-		}
-
 		const userOrdinal = clineMessages
 			.slice(0, targetIndex + 1)
 			.filter((message) => message.type === "say" && (message.say === "task" || message.say === "user_feedback")).length
-
+		const checkpointRunCount = getCheckpointRunCountForMessage(clineMessages, targetIndex)
+		const sourceSessionId = activeSession?.sessionId ?? currentTask.taskId
 		let sdkMessages: SdkUserMessage[]
-		if (activeSession) {
-			sdkMessages = (await activeSession.sdkHost.readMessages(activeSession.sessionId)) as SdkUserMessage[]
-		} else {
-			const tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
-			try {
-				sdkMessages = (await tempHost.readMessages(currentTask.taskId)) as SdkUserMessage[]
-			} finally {
-				await tempHost.dispose("editMessageAndRegenerate.readMessages")
+		let tempHost: VscodeSessionHost | undefined
+		const sessionHost = activeSession?.sdkHost ?? (tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub }))
+		try {
+			sdkMessages = (await sessionHost.readMessages(sourceSessionId)) as SdkUserMessage[]
+			const sdkTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
+			if (sdkTargetIndex === -1) {
+				throw new Error("Could not map edited message to persisted conversation history")
 			}
+
+			const initialMessages = sdkMessages.slice(0, sdkTargetIndex) as Parameters<
+				VscodeSessionHost["start"]
+			>[0]["initialMessages"]
+			const firstUserMessage = sdkMessages.find(
+				(message) => message.role === "user" && !!extractSdkUserText(message) && !isSyntheticSdkUserMessage(message),
+			)
+			const historyTitle =
+				userOrdinal === 1
+					? editedText
+					: extractSdkUserText(firstUserMessage ?? {}) || clineMessages[0]?.text || editedText
+			const fallbackCwd = await this.getWorkspaceRoot()
+			const [sessionRecord, historyItem] = await Promise.all([
+				sessionHost.get(sourceSessionId).catch(() => undefined),
+				this.taskHistory.findHistoryItem(currentTask.taskId).catch(() => undefined),
+			])
+			const cwd =
+				sessionRecord?.cwd?.trim() ||
+				sessionRecord?.workspaceRoot?.trim() ||
+				historyItem?.cwdOnTaskInitialization?.trim() ||
+				fallbackCwd
+			const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+			const config = await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle })
+			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
+				this.emitClineAuthError(editedText)
+				return
+			}
+
+			const resolvedPrompt = await this.resolveContextMentions(editedText)
+			const startInput = {
+				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
+				initialMessages,
+				sessionMetadata: {
+					title: historyTitle,
+					modelId: config.modelId,
+				},
+			}
+
+			if (input.restoreWorkspace) {
+				if (activeSession?.isRunning) {
+					throw new Error("Wait for the current run to finish before restoring workspace changes")
+				}
+				if (checkpointRunCount === undefined) {
+					throw new Error("Workspace restore is only available for messages that started an agent run")
+				}
+				await sessionHost.restore({
+					sessionId: sourceSessionId,
+					checkpointRunCount,
+					cwd,
+					restore: {
+						messages: false,
+						workspace: true,
+						omitCheckpointMessageFromSession: true,
+					},
+				})
+			}
+
+			const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
+
+			this.turnStateTracker.set("streaming")
+			this.messageTranslatorState.clearTurnOutcome()
+			this.resetMessageTranslatorAndFence()
+
+			const task = createTaskProxy(
+				startResult.sessionId,
+				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+				() => this.cancelTask(),
+			)
+			this.task = task
+
+			const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, historyTitle, config.modelId, cwd)
+			await this.taskHistory.updateTaskHistoryItem(newHistoryItem)
+
+			const visibleMessages = clineMessages.slice(0, targetIndex)
+			if (visibleMessages.length > 0) {
+				task.messageStateHandler.addMessages(visibleMessages)
+			}
+			task.messageStateHandler.addMessages([
+				{
+					ts: Date.now(),
+					type: "say",
+					say: userOrdinal === 1 ? "task" : "user_feedback",
+					text: editedText,
+					images: input.images,
+					files: input.files,
+					partial: false,
+				},
+			])
+			await this.postStateToWebview()
+
+			this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
+		} finally {
+			await tempHost?.dispose("editMessageAndRegenerate")
 		}
-		const sdkTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
-		if (sdkTargetIndex === -1) {
-			throw new Error("Could not map edited message to persisted conversation history")
+	}
+
+	async restoreCheckpoint(input: { checkpointRunCount: number; restoreType: ClineCheckpointRestore }): Promise<void> {
+		const restoreMessages = input.restoreType === "task" || input.restoreType === "taskAndWorkspace"
+		const restoreWorkspace = input.restoreType === "workspace" || input.restoreType === "taskAndWorkspace"
+		const checkpointRunCount = Number(input.checkpointRunCount)
+		if (!Number.isInteger(checkpointRunCount) || checkpointRunCount < 1) {
+			throw new Error("checkpointRunCount must be a positive integer")
 		}
 
-		const initialMessages = sdkMessages.slice(0, sdkTargetIndex) as Parameters<
-			VscodeSessionHost["start"]
-		>[0]["initialMessages"]
-		const firstUserMessage = sdkMessages.find(
-			(message) => message.role === "user" && !!extractSdkUserText(message) && !isSyntheticSdkUserMessage(message),
-		)
-		const historyTitle =
-			userOrdinal === 1 ? editedText : extractSdkUserText(firstUserMessage ?? {}) || clineMessages[0]?.text || editedText
+		const activeSession = this.sessions.getActiveSession()
+		const currentTask = this.task
+		if (!activeSession || !currentTask) {
+			throw new Error("No active task to restore")
+		}
+		if (activeSession.isRunning) {
+			await this.cancelTask()
+		}
+
+		const currentMessages = currentTask.messageStateHandler.getClineMessages()
+		const target = restoreMessages ? findVisibleCheckpointUserMessageByRun(currentMessages, checkpointRunCount) : undefined
+		if (restoreMessages && !target) {
+			throw new Error(`Could not find user message for checkpoint run ${checkpointRunCount}`)
+		}
+
 		const cwd = await this.getWorkspaceRoot()
 		const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
-		const config = await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle })
-		if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
-			this.emitClineAuthError(editedText)
+		const firstUserMessage = currentMessages.find(isVisibleCheckpointUserMessage)
+		const restoredText = target?.message.text ?? ""
+		const historyTitle = checkpointRunCount === 1 ? restoredText : firstUserMessage?.text || restoredText
+		const config = restoreMessages ? await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle }) : undefined
+		if (config && usesClineAccountAuth(config.providerId) && !config.apiKey) {
+			this.emitClineAuthError(restoredText)
 			return
 		}
 
-		this.turnStateTracker.set("streaming")
+		const startInput = config
+			? {
+					...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
+					sessionMetadata: {
+						title: historyTitle,
+						modelId: config.modelId,
+					},
+				}
+			: undefined
+
+		const restored = await this.sessions.restoreActiveSession({
+			sessionId: activeSession.sessionId,
+			checkpointRunCount,
+			cwd,
+			restore: {
+				messages: restoreMessages,
+				workspace: restoreWorkspace,
+				omitCheckpointMessageFromSession: true,
+			},
+			...(startInput ? { start: startInput } : {}),
+		})
+
+		if (!restoreMessages) {
+			await this.postStateToWebview()
+			return
+		}
+
+		if (!restored.sessionId || !restored.startResult || !target) {
+			throw new Error("Checkpoint restore did not return a new session")
+		}
+
+		this.turnStateTracker.set("idle")
 		this.messageTranslatorState.clearTurnOutcome()
 		this.resetMessageTranslatorAndFence()
 
-		const startInput = {
-			...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
-			initialMessages,
-			sessionMetadata: {
-				title: historyTitle,
-				modelId: config.modelId,
-			},
-		}
-		const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
 		const task = createTaskProxy(
-			startResult.sessionId,
+			restored.sessionId,
 			(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
 			() => this.cancelTask(),
 		)
 		this.task = task
 
-		const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, historyTitle, config.modelId, cwd)
+		const newHistoryItem = createHistoryItemFromSession(restored.sessionId, historyTitle, config?.modelId ?? "", cwd)
 		await this.taskHistory.updateTaskHistoryItem(newHistoryItem)
 
-		const visibleMessages = clineMessages.slice(0, targetIndex)
+		const visibleMessages = currentMessages.slice(0, target.index)
 		if (visibleMessages.length > 0) {
-			task.messageStateHandler.addMessages(visibleMessages)
+			this.messages.replaceMessages(visibleMessages)
 		}
-		task.messageStateHandler.addMessages([
-			{
-				ts: Date.now(),
-				type: "say",
-				say: userOrdinal === 1 ? "task" : "user_feedback",
-				text: editedText,
-				images: input.images,
-				files: input.files,
-				partial: false,
-			},
-		])
-		await this.postStateToWebview()
 
-		const resolvedPrompt = await this.resolveContextMentions(editedText)
-		this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
+		this.checkpointRestoreInput = {
+			text: restoredText,
+			images: target.message.images ?? [],
+			files: target.message.files ?? [],
+			sessionId: restored.sessionId,
+		}
+		await this.postStateToWebview()
 	}
 
 	/**
@@ -1535,6 +1684,16 @@ export class Controller {
 				.sort((a, b) => b.ts - a.ts)
 				.slice(0, 100)
 
+			let queuedPrompts: ExtensionState["queuedPrompts"] = []
+			const activeSession = this.sessions.getActiveSession()
+			if (activeSession) {
+				try {
+					queuedPrompts = await activeSession.sdkHost.pendingPrompts("list", { sessionId: activeSession.sessionId })
+				} catch (error) {
+					Logger.error("[SdkController] Failed to list pending prompts for webview state:", error)
+				}
+			}
+
 			// Stamp the snapshot with the current epoch and a fresh monotonic version, sampled
 			// from the SAME counter that stamps messages. This lets the webview ignore stale
 			// out-of-order state pushes and fence traffic from a previous task/render. Sampled
@@ -1547,6 +1706,7 @@ export class Controller {
 					: undefined,
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
+				queuedPrompts,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}

@@ -111,6 +111,62 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("marks a submitted queued prompt as a new streaming turn", async () => {
+		const message: ClineMessage = { ts: 1, type: "say", say: "user_feedback", text: "queued prompt" }
+		const { coordinator, options } = makeCoordinator({
+			translation: {
+				messages: [message],
+				sessionEnded: false,
+				turnComplete: false,
+			},
+		})
+		const clearTurnOutcome = vi.spyOn(options.messageTranslatorState, "clearTurnOutcome")
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-123",
+				id: "pending-1",
+				prompt: "queued prompt",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		} as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(clearTurnOutcome).toHaveBeenCalledOnce()
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		expect(options.setTurnPhase).toHaveBeenCalledWith("streaming")
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([message], event)
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("posts state for queued prompt turn start even when no transcript message is emitted", async () => {
+		const { coordinator, options } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: false,
+			},
+		})
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-123",
+				id: "pending-1",
+				prompt: "",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		} as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("streaming")
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
 	it("does NOT override the phase on a turn-complete straggler from an already-cancelled session", async () => {
 		// After cancelTask sets phase "resumable" and aborts, the SDK may still emit a trailing
 		// done/turnComplete. Because the session is no longer running, this straggler must NOT
@@ -191,145 +247,21 @@ describe("SdkSessionEventCoordinator", () => {
 		})
 	})
 
-	describe("mistake_limit_reached", () => {
-		it("emits mistake_limit_reached and aborts session after reaching consecutive error limit", async () => {
-			const maxConsecutiveMistakes = 3
-			const stateManager = {
-				getGlobalSettingsKey: vi.fn((key: string) => {
-					if (key === "maxConsecutiveMistakes") return maxConsecutiveMistakes
-					if (key === "mode") return "act"
-					return undefined
-				}),
-				getApiConfiguration: vi.fn(() => ({
-					actModeApiProvider: "anthropic",
-					actModeClineModelId: "claude-sonnet-4-20250514",
-				})),
-			}
-			const abortFn = vi.fn().mockResolvedValue(undefined)
-			const activeSession = {
-				sessionId: "session-123",
-				sdkHost: { abort: abortFn },
-				unsubscribe: vi.fn(),
-				startResult: { sessionId: "session-123" },
-				isRunning: true,
-			}
-
-			let callCount = 0
-			const translateFn = vi.fn(() => {
-				callCount++
-				return {
-					messages: [{ ts: callCount, type: "say" as const, say: "tool" as const, text: "{}", partial: false }],
-					sessionEnded: false,
-					turnComplete: false,
-					toolError: true,
-				}
-			})
-
-			const options = {
-				messageTranslatorState: new MessageTranslatorState(),
-				sessions: { getActiveSession: vi.fn(() => activeSession), setRunning: vi.fn() },
-				messages: { appendAndEmit: vi.fn() },
-				mcpTools: { checkDeferredRestart: vi.fn() },
-				mode: { hasPendingModeChange: vi.fn(() => false), applyPendingModeChange: vi.fn().mockResolvedValue(undefined) },
-				taskHistory: { updateTaskUsage: vi.fn() },
-				getTask: vi.fn(() => ({ taskId: "task-1" })),
-				postStateToWebview: vi.fn().mockResolvedValue(undefined),
-				translateSessionEvent: translateFn,
-				stateManager,
-			} as unknown as SdkSessionEventCoordinatorOptions & {
-				sessions: SdkSessionEventCoordinatorOptions["sessions"] & { setRunning: ReturnType<typeof vi.fn> }
-				messages: SdkSessionEventCoordinatorOptions["messages"] & { appendAndEmit: ReturnType<typeof vi.fn> }
-			}
-
-			const coordinator = new SdkSessionEventCoordinator(options)
-			const event = {
-				type: "agent_event",
-				payload: { sessionId: "session-123", event: { type: "content_end", contentType: "tool" } },
-			} as unknown as CoreSessionEvent
-
-			// First two tool errors — should NOT trigger mistake_limit_reached
-			await coordinator.handleSessionEvent(event)
-			await coordinator.handleSessionEvent(event)
-			for (const call of options.messages.appendAndEmit.mock.calls.slice(0, 2)) {
-				const msgs = call[0] as ClineMessage[]
-				expect(msgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(false)
-			}
-
-			// Third tool error — should trigger mistake_limit_reached
-			await coordinator.handleSessionEvent(event)
-			const thirdCallMsgs = options.messages.appendAndEmit.mock.calls[2][0] as ClineMessage[]
-			const mistakeMsg = thirdCallMsgs.find((m: ClineMessage) => m.ask === "mistake_limit_reached")
-			expect(mistakeMsg).toBeDefined()
-			expect(mistakeMsg!.type).toBe("ask")
-			expect(mistakeMsg!.partial).toBe(false)
-
-			// Session should be aborted and marked as not running
-			expect(abortFn).toHaveBeenCalledWith("session-123")
-			expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
+	it("leaves mistake-limit recovery to the SDK callback instead of mutating tool-error events", async () => {
+		const message: ClineMessage = { ts: 1, type: "say", say: "tool", text: "{}", partial: false }
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [message],
+				sessionEnded: false,
+				turnComplete: false,
+				toolError: true,
+			},
 		})
 
-		it("resets consecutive tool error count after emitting and on tool success", async () => {
-			const stateManager = {
-				getGlobalSettingsKey: vi.fn((key: string) => {
-					if (key === "maxConsecutiveMistakes") return 2
-					if (key === "mode") return "act"
-					return undefined
-				}),
-				getApiConfiguration: vi.fn(() => ({ actModeApiProvider: "anthropic", actModeClineModelId: "gpt-4" })),
-			}
-			const abortFn = vi.fn().mockResolvedValue(undefined)
-			const activeSession = {
-				sessionId: "s1",
-				sdkHost: { abort: abortFn },
-				unsubscribe: vi.fn(),
-				startResult: { sessionId: "s1" },
-				isRunning: true,
-			}
-			let callCount = 0
-			const options = {
-				messageTranslatorState: new MessageTranslatorState(),
-				sessions: { getActiveSession: vi.fn(() => activeSession), setRunning: vi.fn() },
-				messages: { appendAndEmit: vi.fn() },
-				mcpTools: { checkDeferredRestart: vi.fn() },
-				mode: { hasPendingModeChange: vi.fn(() => false), applyPendingModeChange: vi.fn().mockResolvedValue(undefined) },
-				taskHistory: { updateTaskUsage: vi.fn() },
-				getTask: vi.fn(() => ({ taskId: "t1" })),
-				postStateToWebview: vi.fn().mockResolvedValue(undefined),
-				translateSessionEvent: vi.fn(() => {
-					callCount++
-					return {
-						messages: [{ ts: callCount, type: "say" as const, say: "tool" as const, text: "{}", partial: false }],
-						sessionEnded: false,
-						turnComplete: false,
-						toolError: true,
-					}
-				}),
-				stateManager,
-			} as unknown as SdkSessionEventCoordinatorOptions & {
-				messages: SdkSessionEventCoordinatorOptions["messages"] & { appendAndEmit: ReturnType<typeof vi.fn> }
-			}
+		await coordinator.handleSessionEvent(event)
 
-			const coordinator = new SdkSessionEventCoordinator(options)
-			const event = {
-				type: "agent_event",
-				payload: { sessionId: "s1", event: { type: "content_end", contentType: "tool" } },
-			} as unknown as CoreSessionEvent
-
-			// Trigger limit (2 errors)
-			await coordinator.handleSessionEvent(event)
-			await coordinator.handleSessionEvent(event)
-			const secondMsgs = options.messages.appendAndEmit.mock.calls[1][0] as ClineMessage[]
-			expect(secondMsgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(true)
-
-			// Counter was reset — need 2 more errors to trigger again
-			await coordinator.handleSessionEvent(event)
-			const thirdMsgs = options.messages.appendAndEmit.mock.calls[2][0] as ClineMessage[]
-			expect(thirdMsgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(false)
-
-			await coordinator.handleSessionEvent(event)
-			const fourthMsgs = options.messages.appendAndEmit.mock.calls[3][0] as ClineMessage[]
-			expect(fourthMsgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(true)
-		})
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([message], event)
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
 	})
 })
 
@@ -386,6 +318,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		taskHistory: SdkSessionEventCoordinatorOptions["taskHistory"] & { updateTaskUsage: ReturnType<typeof vi.fn> }
 		postStateToWebview: ReturnType<typeof vi.fn>
 		translateSessionEvent: ReturnType<typeof vi.fn>
+		messageTranslatorState: MessageTranslatorState
 	}
 
 	return {
@@ -414,6 +347,7 @@ interface MakeCoordinatorInput {
 		messages: ClineMessage[]
 		sessionEnded: boolean
 		turnComplete: boolean
+		toolError?: boolean
 		usage?: {
 			tokensIn: number
 			tokensOut: number

@@ -16,6 +16,8 @@ import {
 	type PendingPromptsListInput,
 	type PendingPromptsUpdateInput,
 	type PreparedRemoteConfigCoreIntegration,
+	type RestoreInput,
+	type RestoreResult,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
 	type SessionHistoryRecord,
@@ -195,6 +197,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 
 	async readMessages(sessionId: string) {
 		return this.inner.readMessages(sessionId)
+	}
+
+	async restore(input: RestoreInput): Promise<RestoreResult> {
+		return this.inner.restore(input)
 	}
 
 	async update(

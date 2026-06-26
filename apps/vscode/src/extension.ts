@@ -9,12 +9,12 @@ import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToA
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
 import { sendHaiBuildTaskListClickedEvent } from "./core/controller/ui/subscribeToHaiBuildTaskListClicked"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
+import { sendMarketplaceButtonClickedEvent } from "./core/controller/ui/subscribeToMarketplaceButtonClicked"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
-import { initializeTestMode } from "./services/test/TestMode"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import path from "node:path"
 import type { ExtensionContext } from "vscode"
@@ -83,10 +83,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	const webview = (await initialize(storageContext)) as VscodeWebviewProvider
 
 	// 5. Register services and commands specific to VS Code
-	// Initialize test mode and add disposables to context
-	const testModeWatchers = await initializeTestMode(webview)
-	context.subscriptions.push(...testModeWatchers)
-
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
 		// biome-ignore lint/suspicious/noExplicitAny: Adapt VSCode ExtensionContext to generic interface
@@ -134,6 +130,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 	context.subscriptions.push(vscode.commands.registerCommand(commands.McpButton, () => sendMcpButtonClickedEvent()))
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.MarketplaceButton, () => sendMarketplaceButtonClickedEvent()),
+	)
 	context.subscriptions.push(vscode.commands.registerCommand(commands.SettingsButton, () => sendSettingsButtonClickedEvent()))
 	context.subscriptions.push(vscode.commands.registerCommand(commands.HistoryButton, () => sendHistoryButtonClickedEvent()))
 	context.subscriptions.push(vscode.commands.registerCommand(commands.AccountButton, () => sendAccountButtonClickedEvent()))
@@ -700,10 +699,12 @@ async function getBinaryLocation(name: string): Promise<string> {
 // This method is called when your extension is deactivated
 export async function deactivate() {
 	// Dispose Non-VSCode-specific services
-	tearDown()
-
-	// VSCode-specific services
-	disposeVscodeCommentReviewController()
+	try {
+		await tearDown()
+	} finally {
+		// VSCode-specific services
+		disposeVscodeCommentReviewController()
+	}
 }
 
 // TODO: Find a solution for automatically removing DEV related content from production builds.
