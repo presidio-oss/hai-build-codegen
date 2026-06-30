@@ -21,7 +21,6 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
-import { getCliFeatureFlagsService } from "../../../utils/feature-flags";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
@@ -89,8 +88,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const menuOptions = useMemo(
 		() =>
 			getMainMenuOptions({
-				isClinePassEnabled:
-					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+				isClinePassEnabled: true,
 			}),
 		[],
 	);
@@ -173,6 +171,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		useState(0);
 	const [clinePassSubscriptionOpenStatus, setClinePassSubscriptionOpenStatus] =
 		useState("");
+	const clinePassSubscriptionUrl = useMemo(() => getCliSubscriptionUrl(), []);
 
 	const modelItems: SearchableItem[] = useMemo(
 		() =>
@@ -292,7 +291,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		setClinePassSubscriptionStatus("loading");
 		setClinePassSubscriptionError("");
 		setClinePassCurrentPlanName("");
-		setClinePassPlanFeatures([]);
 		setClinePassSubscriptionOpenStatus("");
 
 		loadCurrentUserPlanFromProviderSettings({ providerSettingsManager })
@@ -457,9 +455,8 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	}, [transitionToModelPicker]);
 
 	const openClinePassSubscriptionPage = useCallback(() => {
-		const subscriptionUrl = getCliSubscriptionUrl();
 		setClinePassSubscriptionOpenStatus("Opening subscription page...");
-		void open(subscriptionUrl, { wait: false })
+		void open(clinePassSubscriptionUrl, { wait: false })
 			.then(() => {
 				setClinePassSubscriptionOpenStatus(
 					"Opened subscription page in your browser.",
@@ -467,10 +464,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			})
 			.catch(() => {
 				setClinePassSubscriptionOpenStatus(
-					`Could not open browser automatically. Open ${subscriptionUrl}`,
+					`Could not open browser automatically. Open ${clinePassSubscriptionUrl}`,
 				);
 			});
-	}, []);
+	}, [clinePassSubscriptionUrl]);
 
 	useEffect(() => {
 		if (
@@ -827,6 +824,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		clinePassSubscriptionOptions: CLINE_PASS_SUBSCRIPTION_OPTIONS,
 		clinePassSubscriptionSelected,
 		clinePassSubscriptionStatus,
+		clinePassSubscriptionUrl,
 		deviceError,
 		deviceStatus,
 		deviceUserCode,
