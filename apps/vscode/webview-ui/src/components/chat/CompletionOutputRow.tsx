@@ -1,6 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { GitCompareIcon } from "lucide-react"
-import { memo, useState } from "react"
+import { memo, useEffect, useState } from "react"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { CopyButton } from "../common/CopyButton"
 import SuccessButton from "../common/SuccessButton"
@@ -13,10 +13,13 @@ interface CompletionOutputRowProps {
 	quoteButtonState: QuoteButtonState
 	handleQuoteClick: () => void
 	/**
-	 * Shows the "View Changes" action inside the card, which opens a
+	 * Allows the "View Changes" action inside the card, which opens a
 	 * multi-file diff of everything that changed between the latest checkpoint
 	 * (taken when the user's last message started the run) and the current
 	 * working tree. Only meaningful on the latest, finalized completion row.
+	 * The button stays hidden until the host confirms there are changes to
+	 * show — no changes (or no checkpoint at all, e.g. a non-git workspace)
+	 * simply renders no button.
 	 */
 	showViewChanges?: boolean
 }
@@ -31,6 +34,38 @@ interface CompletionOutputRowProps {
 export const CompletionOutputRow = memo(
 	({ text, quoteButtonState, handleQuoteClick, showViewChanges }: CompletionOutputRowProps) => {
 		const [viewChangesPending, setViewChangesPending] = useState(false)
+		// undefined = still checking; the button stays hidden until the host
+		// confirms the latest run actually changed files. A count of 0 also
+		// covers "no checkpoint to compare against" (non-git workspace, no
+		// commits yet, or a comparison failure) — in all of those cases there
+		// is nothing to view, so no button is rendered.
+		const [hasChanges, setHasChanges] = useState<boolean | undefined>(undefined)
+
+		useEffect(() => {
+			// Reset on every re-check so a stale positive answer from a previous
+			// evaluation can't flash the button before the host confirms the new
+			// comparison.
+			setHasChanges(undefined)
+			if (!showViewChanges) {
+				return
+			}
+			let cancelled = false
+			CheckpointsServiceClient.checkpointLatestChangesCount(EmptyRequest.create({}))
+				.then((count) => {
+					if (!cancelled) {
+						setHasChanges((count.value ?? 0) > 0)
+					}
+				})
+				.catch((err) => {
+					console.error("Failed to check for latest changes:", err)
+					if (!cancelled) {
+						setHasChanges(false)
+					}
+				})
+			return () => {
+				cancelled = true
+			}
+		}, [showViewChanges])
 
 		return (
 			<div className="rounded-sm border border-success/20 overflow-visible bg-success/10">
@@ -44,7 +79,7 @@ export const CompletionOutputRow = memo(
 						<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
 					)}
 				</div>
-				{showViewChanges && (
+				{showViewChanges && hasChanges === true && (
 					<div className="px-2 pb-2">
 						<SuccessButton
 							className="w-full"
