@@ -78,6 +78,12 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		headlessToolNames: ["ask_question"],
 	},
 	{
+		id: "tasks",
+		description:
+			"Create and manage durable Todo items or explicitly requested one-time and recurring agent schedules.",
+		headlessToolNames: ["tasks"],
+	},
+	{
 		id: "spawn_agent",
 		description: createSpawnAgentTool({ configProvider: {} as never })
 			.description,
@@ -185,6 +191,9 @@ function isEntryEnabledByDefault(
 	if (entryId === "teams") {
 		return flags.enableAgentTeams === true;
 	}
+	if (entryId === "tasks") {
+		return true;
+	}
 	if (entryId === "editor") {
 		return flags.enableEditor === true || flags.enableApplyPatch === true;
 	}
@@ -219,12 +228,29 @@ export function getCoreBuiltinToolCatalog(
 ): ToolCatalogEntry[] {
 	return BASE_TOOL_CATALOG.filter(
 		(entry) =>
-			entry.id !== "web_search" ||
-			supportsModelTool(
-				{ providerId: context.providerId ?? "", modelId: context.modelId },
-				"web_search",
-			),
+			(entry.id !== "tasks" || resolveContextMode(context.mode) !== "yolo") &&
+			(entry.id !== "web_search" ||
+				supportsModelTool(
+					{ providerId: context.providerId ?? "", modelId: context.modelId },
+					"web_search",
+				)),
 	).map((entry) => buildCatalogEntry(entry, context));
+}
+
+/**
+ * Whether the `skills` tool is part of a session's default toolset for this
+ * availability context. Hosts consult this before dispatching a typed
+ * `/skill` command: when the tool is available the command passes through as
+ * typed and the model loads the instructions via the tool; when it is not
+ * (e.g. the yolo preset or a user toggle disables it), textual expansion is
+ * the only delivery path left.
+ */
+export function isSkillsToolAvailable(
+	context: BuiltinToolAvailabilityContext = {},
+): boolean {
+	return getCoreBuiltinToolCatalog(context).some(
+		(entry) => entry.id === "skills" && entry.defaultEnabled,
+	);
 }
 
 export function getCoreDefaultEnabledToolIds(

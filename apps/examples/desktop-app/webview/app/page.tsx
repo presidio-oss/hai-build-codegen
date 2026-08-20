@@ -432,11 +432,17 @@ export default function Home() {
 							onNavigateBack={handleNavigateBack}
 							onNavigateForward={handleNavigateForward}
 							onNewThread={handleNewThread}
+							onOpenSessionById={handleOpenSessionById}
 							onSettingsSectionChange={handleSettingsSectionChange}
 							sessionHistory={sessionHistory}
 							setView={handleViewChange}
 							settingsSection={settingsSection}
 							view={view}
+							workspaceRoot={
+								activeThread?.historySession?.workspaceRoot ||
+								activeThread?.historySession?.cwd ||
+								historyWorkspacePaths[0]
+							}
 							canNavigateBack={navigation.back.length > 0}
 							canNavigateForward={navigation.forward.length > 0}
 						/>
@@ -578,6 +584,7 @@ function ChatThreadPane({
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		proceedWhileRunning,
 		reset,
 		abort,
 		hydrateSession,
@@ -1617,6 +1624,7 @@ function ChatThreadPane({
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
+								onProceedWhileRunning={proceedWhileRunning}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
@@ -1640,6 +1648,7 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
+					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
 				/>
 			</div>
