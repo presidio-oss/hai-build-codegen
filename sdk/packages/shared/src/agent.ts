@@ -477,6 +477,17 @@ export interface AgentRuntimePlugin {
 
 export interface AgentRuntimeConfig {
 	/**
+	 * Stable end-user distinct ID used for provider and observability metadata.
+	 * This is intentionally separate from the host-owned session id.
+	 */
+	distinctId?: string;
+	/** Calling client surface, for example `cline-vscode` or `cline-sdk`. */
+	clientName?: string;
+	/** Calling client version, such as the VS Code extension version. */
+	clientVersion?: string;
+	/** Version of the Cline Core SDK executing the runtime. */
+	clineCoreVersion?: string;
+	/**
 	 * Core/hub runtime session identifier.
 	 *
 	 * The host-owned lifecycle id for the task/session containing this runtime.

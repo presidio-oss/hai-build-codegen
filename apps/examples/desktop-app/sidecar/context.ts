@@ -26,6 +26,10 @@ import {
 	markQueuedAttachmentsSubmitted,
 	reconcileQueuedAttachments,
 } from "./attachments";
+import {
+	disposeDesktopFeatureFlagsService,
+	getDesktopFeatureFlagsService,
+} from "./feature-flags";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -434,7 +438,7 @@ function emitQueuedPromptStart(
 	);
 }
 
-function handleCoreSessionEvent(
+export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
 ): void {
@@ -626,6 +630,10 @@ export async function disposeSidecarContext(
 	if (sessionManager) {
 		cleanup.push(sessionManager.dispose(reason));
 	}
+
+	// Shuts down the PostHog client the feature flags service owns, flushing
+	// any pending $feature_flag_called events.
+	cleanup.push(disposeDesktopFeatureFlagsService());
 
 	const results = await Promise.allSettled(cleanup);
 	const firstFailure = results.find(
@@ -1021,6 +1029,10 @@ export async function initializeSessionManager(
 		capabilities: createSidecarRuntimeCapabilities(ctx),
 		logger: ctx.logger,
 		telemetry: ctx.telemetry,
+		featureFlags: getDesktopFeatureFlagsService({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		}),
 		hub: {
 			strategy: "require-hub",
 			workspaceRoot: ctx.workspaceRoot,
