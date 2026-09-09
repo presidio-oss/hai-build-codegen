@@ -32,6 +32,7 @@ import {
 } from "./feature-flags";
 import { sessionLogPath } from "./paths";
 import type {
+	ChunkSource,
 	LiveSession,
 	PendingAskQuestion,
 	PendingToolApproval,
@@ -171,13 +172,76 @@ function appendSessionChunk(
 	});
 }
 
+/**
+ * How long an idle session stays "served by ClineCore" after its last event
+ * before the observer projection may take over.
+ *
+ * This window only applies between runs. While a run is busy, silence on the
+ * core pipe is not evidence that its subscription died: a long command, a
+ * slow first token, or a tool-approval prompt the user takes a while to answer
+ * all stall both pipes together. Expiring the mark mid-turn let the observer's
+ * copy of the first post-gap event through ahead of the core copy, doubling a
+ * delta or orphaning a duplicate tool row every time a turn paused for longer
+ * than the window.
+ */
+const CORE_PIPE_ACTIVE_MS = 5_000;
+
+/**
+ * Records that the ClineCore subscription is serving this session.
+ *
+ * The sidecar has two pipes into `emitChunk`: the ClineCore session
+ * subscription and the hub observer client. Opening a session arms both (the
+ * hydrate's `pending_prompts` call makes ClineCore subscribe to the session,
+ * and `attach` sets `attachedViaHub`), so for a session streaming through the
+ * hub each delta arrived twice — and since both copies go through `emitChunk`
+ * each gets its own increasing `index`, which is exactly what the webview's
+ * replay guard compares, so it could not tell them apart.
+ *
+ * The two pipes are not peers: ClineCore's subscription is the primary, and
+ * the observer projection exists to cover sessions ClineCore is not subscribed
+ * to. Any event on the primary proves it is subscribed, so it is the primary
+ * that decides — no list of which streams happen to overlap.
+ */
+function markCorePipeActive(ctx: SidecarContext, sessionId: string): void {
+	ctx.coreStreamActivity.set(sessionId, nowMs());
+}
+
+/**
+ * Forget that the ClineCore subscription served this session. Called when the
+ * session ends and wherever the sidecar stops a session: `stop` disposes the
+ * core subscription without any local `ended` event, and a stale mark would
+ * otherwise mute the observer for the next run another client starts on the
+ * same session, since that run's `run.started` marks the session busy.
+ */
+export function forgetCorePipe(ctx: SidecarContext, sessionId: string): void {
+	ctx.coreStreamActivity.delete(sessionId);
+}
+
+function isCorePipeActive(
+	ctx: SidecarContext,
+	sessionId: string,
+	now: number,
+): boolean {
+	const lastEventAt = ctx.coreStreamActivity.get(sessionId);
+	if (lastEventAt === undefined) return false;
+	// The mark is cleared when the session ends, so during a busy run it means
+	// the core subscription served this session and is still the pipe to trust
+	// even when neither pipe has had anything to deliver for a while.
+	if (ctx.liveSessions.get(sessionId)?.busy) return true;
+	return now - lastEventAt <= CORE_PIPE_ACTIVE_MS;
+}
+
 function emitChunk(
 	ctx: SidecarContext,
 	sessionId: string,
 	stream: string,
 	chunk: string,
+	source: ChunkSource = "core",
 ): void {
 	const ts = nowMs();
+	if (source === "observer" && isCorePipeActive(ctx, sessionId, ts)) {
+		return;
+	}
 	appendSessionChunk(sessionId, stream, chunk, ts);
 	const nextIndex = (ctx.streamIndices.get(sessionId) ?? 0) + 1;
 	ctx.streamIndices.set(sessionId, nextIndex);
@@ -187,6 +251,7 @@ function emitChunk(
 		chunk,
 		ts,
 		index: nextIndex,
+		boot: ctx.bootId,
 	});
 }
 
@@ -344,6 +409,7 @@ function handleAgentEvent(
 					message: event.message,
 					noticeType: event.noticeType,
 					reason: event.reason,
+					metadata: event.metadata,
 				}),
 			);
 			break;
@@ -367,6 +433,7 @@ function handleAgentEvent(
 			break;
 		}
 		case "done": {
+			cancelSidecarMistakeQuestions(ctx, sessionId, "Run ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -401,7 +468,19 @@ function handleAgentEvent(
 			);
 			break;
 		}
-		case "iteration_start":
+		case "iteration_start": {
+			const session = ctx.liveSessions.get(sessionId);
+			if (session) {
+				// Iterations restart at one for each user run. Keep the previous
+				// answer only within the run in which it was supplied.
+				if (event.iteration === 1 || !session.mistakeRecovery) {
+					session.mistakeRecovery = { latestIteration: event.iteration };
+				} else {
+					session.mistakeRecovery.latestIteration = event.iteration;
+				}
+			}
+			break;
+		}
 		case "iteration_end":
 			break;
 	}
@@ -444,6 +523,29 @@ export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
 ): void {
+	// Reaching here at all means ClineCore is subscribed to the session, so its
+	// projection is live and the observer's copy of the same hub events would
+	// be a duplicate. Marked from the pipe itself rather than from `emitChunk`,
+	// so chunks the sidecar synthesizes locally never claim to be this pipe.
+	//
+	// Deliberately every event, not just the content-bearing ones: the hub
+	// fans out to listeners in registration order, and the observer's global
+	// subscription is registered at sidecar boot while this per-session one
+	// arrives at hydrate — so the observer sees each delta first. Waiting for
+	// core content to mark the pipe would let the observer's copy of a turn's
+	// first delta through before the mark existed, doubling it every turn.
+	// The cost is the reverse case: if this pipe delivers a status or queue
+	// event and then stops while the observer keeps streaming, the observer is
+	// held off for the rest of the run (and `CORE_PIPE_ACTIVE_MS` after it).
+	// That needs the subscription torn down mid-turn, which only stop and
+	// detach do, and the turn-end reconcile restores the gap from canonical
+	// history — where doubling would be visible on every turn.
+	const eventSessionId = (event.payload as { sessionId?: string } | undefined)
+		?.sessionId;
+	if (eventSessionId) {
+		markCorePipeActive(ctx, eventSessionId);
+	}
+
 	switch (event.type) {
 		case "chunk": {
 			const { sessionId, stream, chunk } = event.payload;
@@ -520,6 +622,7 @@ export function handleCoreSessionEvent(
 		}
 		case "ended": {
 			const { sessionId, reason } = event.payload;
+			cancelSidecarMistakeQuestions(ctx, sessionId, "Session ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -527,6 +630,8 @@ export function handleCoreSessionEvent(
 				session.status = reason || "ended";
 			}
 			discardAllTrackedAttachments(sessionId, session);
+			// The next run decides afresh which pipe is serving the session.
+			forgetCorePipe(ctx, sessionId);
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
 			break;
 		}
@@ -570,12 +675,15 @@ export function createSidecarContext(
 	observability: {
 		logger?: BasicLogger;
 		telemetry?: ITelemetryService;
+		telemetryUser?: SidecarContext["telemetryUser"];
 	} = {},
 ): SidecarContext {
 	return {
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
+		coreStreamActivity: new Map(),
+		bootId: randomUUID(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
@@ -584,6 +692,7 @@ export function createSidecarContext(
 		workspaceRoot,
 		logger: observability.logger,
 		telemetry: observability.telemetry,
+		telemetryUser: observability.telemetryUser,
 		unsubscribeSessionEvents: null,
 		hubBuildMismatch: null,
 	};
@@ -724,6 +833,28 @@ export function resolveSidecarAskQuestion(
 	return true;
 }
 
+/** Remove prompts before their session is stopped or replaced in the UI. */
+export function cancelSidecarMistakeQuestions(
+	ctx: SidecarContext,
+	sessionId: string,
+	reason: string,
+): void {
+	for (const pending of ctx.pendingQuestions?.values() ?? []) {
+		if (
+			pending.item.sessionId !== sessionId ||
+			pending.item.context?.agentId !== "desktop-mistake-limit"
+		)
+			continue;
+		ctx.pendingQuestions.delete(pending.item.requestId);
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
+		pending.reject(new Error(reason));
+		sendEvent(ctx, "ask_question_cancelled", {
+			requestId: pending.item.requestId,
+			reason,
+		});
+	}
+}
+
 export function createSidecarRuntimeCapabilities(
 	ctx: SidecarContext,
 ): RuntimeCapabilities {
@@ -830,14 +961,20 @@ export function handleHubLiveEvent(
 			const text =
 				typeof event.payload?.text === "string" ? event.payload.text : "";
 			if (text) {
-				emitChunk(ctx, sessionId, "chat_text", text);
+				emitChunk(ctx, sessionId, "chat_text", text, "observer");
 			}
 			return;
 		}
 		case "assistant.media": {
 			const media = event.payload?.media;
 			if (isGeneratedMedia(media)) {
-				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(media));
+				emitChunk(
+					ctx,
+					sessionId,
+					"chat_media",
+					JSON.stringify(media),
+					"observer",
+				);
 			}
 			return;
 		}
@@ -853,6 +990,7 @@ export function handleHubLiveEvent(
 				sessionId,
 				"chat_reasoning",
 				JSON.stringify({ text, redacted }),
+				"observer",
 			);
 			return;
 		}
@@ -872,6 +1010,7 @@ export function handleHubLiveEvent(
 							: "tool",
 					input: event.payload?.input,
 				}),
+				"observer",
 			);
 			return;
 		}
@@ -891,6 +1030,7 @@ export function handleHubLiveEvent(
 							: "tool",
 					update: event.payload?.update,
 				}),
+				"observer",
 			);
 			return;
 		}
@@ -914,6 +1054,7 @@ export function handleHubLiveEvent(
 							? event.payload.error
 							: undefined,
 				}),
+				"observer",
 			);
 			return;
 		}
