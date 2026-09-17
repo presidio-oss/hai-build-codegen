@@ -517,6 +517,8 @@ export class AgentRuntime {
 		usage: cloneUsage(DEFAULT_USAGE),
 		lastError: undefined as string | undefined,
 		lastErrorClass: undefined as ProviderErrorClass | undefined,
+		/** Provider-reported input tokens for the most recent request this run. */
+		lastRequestInputTokens: 0,
 		/**
 		 * Whether the last provider failure was transient and worth retrying,
 		 * carried from the model boundary via `errorRetryable` on the `finish`
@@ -537,6 +539,7 @@ export class AgentRuntime {
 	private overflowRecoveryAttempted = false;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
+	private modelSteerController?: AbortController;
 	private readonly telemetryProviderId?: string;
 	private readonly telemetryModelId?: string;
 
@@ -564,6 +567,11 @@ export class AgentRuntime {
 
 	async continue(input?: AgentRunInput): Promise<AgentRunResult> {
 		return this.execute(input);
+	}
+
+	/** Interrupt only the current model request; running tools finish normally. */
+	notifyPendingUserMessage(): void {
+		this.modelSteerController?.abort();
 	}
 
 	abort(reason?: unknown): void {
@@ -730,6 +738,7 @@ export class AgentRuntime {
 		this.state.lastErrorReported = false;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
+		this.state.lastRequestInputTokens = 0;
 
 		try {
 			await this.callBeforeRunHooks();
@@ -767,8 +776,17 @@ export class AgentRuntime {
 				// A fresh error slate per turn: nothing from a previous turn may leak
 				// into this turn's error classification or retry decision.
 				this.resetLastError();
-				const { message, finishReason } =
+				const { message, finishReason, interrupted } =
 					await this.generateAssistantMessageWithProviderRetry();
+				if (interrupted && message.content.length === 0) {
+					await this.emit({
+						type: "turn-finished",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						toolCallCount: 0,
+					});
+					continue;
+				}
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}
@@ -809,6 +827,16 @@ export class AgentRuntime {
 					message,
 					finishReason,
 				});
+
+				if (interrupted) {
+					await this.emit({
+						type: "turn-finished",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						toolCallCount: 0,
+					});
+					continue;
+				}
 
 				if (finishReason === "max-tokens" && toolCalls.length === 0) {
 					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
@@ -999,6 +1027,7 @@ export class AgentRuntime {
 	private async generateAssistantMessageWithProviderRetry(): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
 	}> {
 		let attempt = 0;
 		for (;;) {
@@ -1117,6 +1146,7 @@ export class AgentRuntime {
 	private async generateAssistantMessageWithOverflowRecovery(): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
 	}> {
 		const first = await this.generateAssistantMessage();
 		if (!this.isRecoverableOverflowTurn(first)) {
@@ -1179,6 +1209,26 @@ export class AgentRuntime {
 	}): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const controller = new AbortController();
+		this.modelSteerController = controller;
+		try {
+			return await this.generateAssistantMessageForRequest(controller, options);
+		} finally {
+			this.modelSteerController = undefined;
+		}
+	}
+
+	private async generateAssistantMessageForRequest(
+		steerController: AbortController,
+		options?: {
+			overflowRecovery?: boolean;
+		},
+	): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
 	}> {
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const modelRequestMetadata = omitUndefinedValues({
@@ -1267,6 +1317,15 @@ export class AgentRuntime {
 			durationMs: getTaskLifecycleDurationMs(),
 			phase: "provider_request_started",
 		});
+		// Steering cancels provider generation, while request preparation keeps
+		// the run-level signal so compaction and hooks can finish consistently.
+		request = {
+			...request,
+			signal: AbortSignal.any([
+				steerController.signal,
+				...(this.abortController ? [this.abortController.signal] : []),
+			]),
+		};
 		const stream = this.openTaskLifecycleStream(
 			request,
 			getTaskLifecycleDurationMs,
@@ -1285,6 +1344,7 @@ export class AgentRuntime {
 		let accumulatedReasoning = "";
 
 		for await (const event of stream) {
+			if (steerController.signal.aborted) break;
 			this.throwIfAborted();
 			switch (event.type) {
 				case "text-delta": {
@@ -1451,6 +1511,15 @@ export class AgentRuntime {
 					break;
 				}
 				case "usage": {
+					// Record the provider's own input-token count for this request so
+					// the prepare-turn pipeline can trigger compaction on real usage
+					// rather than a character-based estimate.
+					if (
+						typeof event.usage.inputTokens === "number" &&
+						event.usage.inputTokens > 0
+					) {
+						this.state.lastRequestInputTokens = event.usage.inputTokens;
+					}
 					await this.updateUsage(event.usage);
 					break;
 				}
@@ -1476,8 +1545,18 @@ export class AgentRuntime {
 				}
 			}
 		}
+		this.throwIfAborted();
+		const interrupted = steerController.signal.aborted;
+		if (interrupted) finishReason = "stop";
 
 		for (const item of sequence) {
+			// A cancelled stream may contain incomplete tool JSON or unsigned
+			// reasoning. Keep only replayable visible content from that response.
+			if (
+				interrupted &&
+				(item.type === "tool" || item.part.type === "reasoning")
+			)
+				continue;
 			if (item.type === "part") {
 				content.push(item.part);
 				continue;
@@ -1543,7 +1622,7 @@ export class AgentRuntime {
 			this.applyStopControl(control);
 		}
 
-		return { message, finishReason };
+		return { message, finishReason, interrupted };
 	}
 
 	private async *openTaskLifecycleStream(
@@ -1561,7 +1640,9 @@ export class AgentRuntime {
 				phase,
 			});
 		} catch (error) {
-			if (!this.isAbortError(error)) {
+			if (request.signal?.aborted && !this.abortController?.signal.aborted)
+				return;
+			if (!request.signal?.aborted && !this.isAbortError(error)) {
 				this.captureTaskLifecycleFailure(
 					error,
 					phase,
@@ -1586,7 +1667,9 @@ export class AgentRuntime {
 				yield event;
 			}
 		} catch (error) {
-			if (!this.isAbortError(error)) {
+			if (request.signal?.aborted && !this.abortController?.signal.aborted)
+				return;
+			if (!request.signal?.aborted && !this.isAbortError(error)) {
 				this.captureTaskLifecycleFailure(
 					error,
 					phase,
@@ -1699,6 +1782,10 @@ export class AgentRuntime {
 			},
 			signal: request.signal,
 			overflowRecovery: overflowRecovery || undefined,
+			previousRequestInputTokens:
+				this.state.lastRequestInputTokens > 0
+					? this.state.lastRequestInputTokens
+					: undefined,
 			emitStatusNotice: (message, metadata) => {
 				void this.emit({
 					type: "status-notice",
