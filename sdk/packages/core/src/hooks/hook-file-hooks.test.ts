@@ -64,7 +64,7 @@ async function createWorkspaceWithHook(
 	body: string,
 ): Promise<{ workspace: string; hookPath: string }> {
 	const workspace = await mkdtemp(join(tmpdir(), "hooks-workspace-"));
-	const hooksDir = join(workspace, ".clinerules", "hooks");
+	const hooksDir = join(workspace, ".hairules", "hooks");
 	await mkdir(hooksDir, { recursive: true });
 	const hookPath = join(hooksDir, fileName);
 	await writeFile(hookPath, body, "utf8");
@@ -620,7 +620,7 @@ describe("createHookConfigFileHooks", () => {
 		);
 		try {
 			await writeFile(
-				join(workspace, ".clinerules", "hooks", "PostToolUse.js"),
+				join(workspace, ".hairules", "hooks", "PostToolUse.js"),
 				`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: true, errorMessage: "post-hook says stop" }))\n`,
 				"utf8",
 			);
@@ -850,7 +850,7 @@ describe("createHookConfigFileHooks", () => {
 		);
 		try {
 			await writeFile(
-				join(workspace, ".clinerules", "hooks", "UserPromptSubmit.js"),
+				join(workspace, ".hairules", "hooks", "UserPromptSubmit.js"),
 				`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').appendFileSync(${JSON.stringify(outputPath)}, data.trim()+"\\n");});\n`,
 				"utf8",
 			);

@@ -229,7 +229,7 @@ describe("storage path resolution", () => {
 				// xdg-user-dir's unconfigured Documents fallback (cline/cline#13542)
 				join(
 					dirname(dirname(resolveGlobalAgentsRulesPath())),
-					"Cline",
+					"HAI",
 					"Rules",
 				),
 			]),
@@ -239,11 +239,11 @@ describe("storage path resolution", () => {
 		);
 	});
 
-	it("resolves both workspace rule layouts (.clinerules and .cline/rules)", () => {
+	it("resolves both workspace rule layouts (.hairules and .cline/rules)", () => {
 		const workspacePath = join("/repo", "demo");
 
 		expect(resolveWorkspaceRulesConfigPaths(workspacePath)).toEqual([
-			join(workspacePath, ".clinerules"),
+			join(workspacePath, ".hairules"),
 			join(workspacePath, ".cline", RULES_CONFIG_DIRECTORY_NAME),
 		]);
 		expect(resolveRulesConfigSearchPaths(workspacePath)).toEqual(
@@ -265,11 +265,11 @@ describe("storage path resolution", () => {
 				globalPaths.filter(
 					(candidate) =>
 						candidate ===
-						join("/tmp", "user", "OneDrive", "Documents", "Cline", "Rules"),
+						join("/tmp", "user", "OneDrive", "Documents", "HAI", "Rules"),
 				),
 			).toHaveLength(1);
 			expect(resolveRulesConfigSearchPaths("/repo/demo")).toContain(
-				join("/tmp", "user", "OneDrive", "Documents", "Cline", "Rules"),
+				join("/tmp", "user", "OneDrive", "Documents", "HAI", "Rules"),
 			);
 		} finally {
 			process.env.OneDrive = previousOneDrive;
@@ -304,8 +304,8 @@ describe("storage path resolution", () => {
 		const paths = resolveWorkflowsConfigSearchPaths(workspacePath);
 
 		expect(paths).toEqual([
-			join(workspacePath, ".clinerules", "workflows"),
-			expect.stringContaining(join("Documents", "Cline", "Workflows")),
+			join(workspacePath, ".hairules", "workflows"),
+			expect.stringContaining(join("Documents", "HAI", "Workflows")),
 			join("/tmp/home", ".cline", "workflows"),
 			join(workspacePath, ".cline", "workflows"),
 		]);

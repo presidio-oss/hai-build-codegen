@@ -60,7 +60,7 @@ describe("user instruction config loader", () => {
 		const workspacePath = "/repo/demo";
 		expect(resolveSkillsConfigSearchPaths(workspacePath)).toEqual(
 			expect.arrayContaining([
-				join(workspacePath, ".clinerules", "skills"),
+				join(workspacePath, ".hairules", "skills"),
 				join(workspacePath, ".cline", "skills"),
 				join(workspacePath, ".agents", "skills"),
 			]),
@@ -68,7 +68,7 @@ describe("user instruction config loader", () => {
 		expect(resolveRulesConfigSearchPaths(workspacePath)).toEqual(
 			expect.arrayContaining([
 				join(workspacePath, "AGENTS.md"),
-				join(workspacePath, ".clinerules"),
+				join(workspacePath, ".hairules"),
 				join(workspacePath, ".cline", "rules"),
 			]),
 		);
@@ -78,13 +78,13 @@ describe("user instruction config loader", () => {
 			),
 		).toBe(true);
 		const paths = resolveWorkflowsConfigSearchPaths(workspacePath);
-		expect(paths).toContain(join(workspacePath, ".clinerules", "workflows"));
+		expect(paths).toContain(join(workspacePath, ".hairules", "workflows"));
 		expect(paths).toContain(join(workspacePath, ".cline", "workflows"));
 		expect(
 			paths.some(
 				(p) =>
 					p.includes("Documents") &&
-					p.includes("Cline") &&
+					p.includes("HAI") &&
 					p.includes("Workflows"),
 			),
 		).toBe(true);
@@ -276,7 +276,7 @@ Escalation runbook`,
 		}
 	});
 
-	it("still loads all rules when .clinerules is a legacy single file", async () => {
+	it("still loads all rules when .hairules is a legacy single file", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-user-instructions-clinerules-file-"),
 		);
@@ -285,14 +285,14 @@ Escalation runbook`,
 		const originalHomeDir = process.env.HOME?.trim() || homedir();
 		setHomeDir(join(tempRoot, "home"));
 		const workspaceRoot = join(tempRoot, "workspace");
-		const globalRulesDir = join(tempRoot, "home", ".cline", "rules");
+		const globalRulesDir = join(tempRoot, "home", ".hai", "rules");
 		await mkdir(workspaceRoot, { recursive: true });
 		await mkdir(globalRulesDir, { recursive: true });
-		// Legacy single-file ruleset: `.clinerules/skills` and
-		// `.clinerules/workflows` now resolve through a file (ENOTDIR), which
+		// Legacy single-file ruleset: `.hairules/skills` and
+		// `.hairules/workflows` now resolve through a file (ENOTDIR), which
 		// must not abort scanning of the other config sources.
 		await writeFile(
-			join(workspaceRoot, ".clinerules"),
+			join(workspaceRoot, ".hairules"),
 			"Never introduce ESM syntax.",
 		);
 		await writeFile(
@@ -507,18 +507,18 @@ Use the security review checklist.`,
 		).toBe(true);
 	});
 
-	it("lets workspace .cline workflows override legacy .clinerules workflows with the same name", async () => {
+	it("lets workspace .cline workflows override legacy .hairules workflows with the same name", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-user-instructions-workflow-precedence-"),
 		);
 		tempRoots.push(tempRoot);
 
-		await mkdir(join(tempRoot, ".clinerules", "workflows"), {
+		await mkdir(join(tempRoot, ".hairules", "workflows"), {
 			recursive: true,
 		});
 		await mkdir(join(tempRoot, ".cline", "workflows"), { recursive: true });
 		await writeFile(
-			join(tempRoot, ".clinerules", "workflows", "release.md"),
+			join(tempRoot, ".hairules", "workflows", "release.md"),
 			`---
 name: release
 ---

@@ -520,7 +520,7 @@ export function resolveGlobalAgentsRulesPath(): string {
 
 /**
  * The workspace-local directories rule files may live in: the legacy
- * `<workspace>/.clinerules` layout and the current
+ * `<workspace>/.hairules` layout and the current
  * `<workspace>/.cline/rules` layout. Every Cline surface (CLI, VS Code
  * extension, desktop app) must honor both — hosts that hardcode one of them
  * silently drop the other's rules (cline/cline#14186).

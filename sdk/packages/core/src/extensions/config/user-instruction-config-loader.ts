@@ -128,8 +128,8 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 	const nodeError = error as NodeJS.ErrnoException;
 	return (
 		nodeError?.code === "ENOENT" ||
-		// ENOTDIR: a path component is a file, e.g. `.clinerules/workflows`
-		// when `.clinerules` is a legacy single-file ruleset. Treat it like a
+		// ENOTDIR: a path component is a file, e.g. `.hairules/workflows`
+		// when `.hairules` is a legacy single-file ruleset. Treat it like a
 		// missing directory instead of aborting the whole config scan.
 		nodeError?.code === "ENOTDIR" ||
 		nodeError?.code === "EACCES" ||
@@ -671,7 +671,7 @@ export function createRulesConfigDefinition(
 		directories: managedRoot ? [...directories, managedRoot] : directories,
 		discoverFiles: discoverRulesLikeFiles,
 		includeFile: (fileName, filePath) =>
-			fileName === ".clinerules" ||
+			fileName === ".hairules" ||
 			isMarkdownFile(fileName) ||
 			isMarkdownFile(filePath),
 		parseFile: (context) =>
