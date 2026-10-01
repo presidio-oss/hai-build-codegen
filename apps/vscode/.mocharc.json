@@ -1,0 +1,17 @@
+{
+	"extension": [
+		"ts"
+	],
+	"spec": [
+		"src/standalone/__tests__/core-connection.test.ts",
+		"src/dev/mcp-oauth-test-server/__tests__/frozzle.test.ts",
+		"src/services/mcp/__tests__/McpHub.toggleServerDisabledRPC.test.ts"
+	],
+	"require": [
+		"ts-node/register",
+		"source-map-support/register",
+		"./src/test/requires.ts"
+	],
+	"recursive": true,
+	"exit": true
+}

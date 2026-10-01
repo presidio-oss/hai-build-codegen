@@ -148,8 +148,8 @@ const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePath: stri
 }
 
 const LOCAL_RULE_PATHS = {
-	clineRules: ".clinerules",
-	workflows: ".clinerules/workflows",
+	clineRules: ".hairules",
+	workflows: ".hairules/workflows",
 } as const
 
 type ActivatedConditionalRule = {

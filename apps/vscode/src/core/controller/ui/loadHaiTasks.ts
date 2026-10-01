@@ -1,9 +1,10 @@
 import type { IHaiStory } from "@shared/hai-task"
 import { Empty } from "@shared/proto/cline/common"
 import type { HaiTasksLoadRequest } from "@shared/proto/cline/ui"
+import { ShowMessageType } from "@shared/proto/host/window"
 import * as fs from "fs"
 import * as path from "path"
-import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 import { sendHaiTaskDataUpdate } from "./subscribeToHaiTaskData"
@@ -32,16 +33,14 @@ export async function loadHaiTasks(controller: Controller, request: HaiTasksLoad
 			selectedFolderPath = folderPath
 		} else {
 			// Show folder picker
-			const options: vscode.OpenDialogOptions = {
+			const selected = await HostProvider.window.showOpenDialogue({
 				canSelectMany: false,
 				openLabel: "Open",
 				canSelectFiles: false,
 				canSelectFolders: true,
-			}
-
-			const fileUri = await vscode.window.showOpenDialog(options)
-			if (fileUri && fileUri[0]) {
-				selectedFolderPath = fileUri[0].fsPath
+			})
+			if (selected.paths && selected.paths[0]) {
+				selectedFolderPath = selected.paths[0]
 			}
 		}
 
@@ -68,7 +67,10 @@ async function fetchTaskFromSelectedFolder(_controller: Controller, folderPath: 
 	const stories = await readHaiTaskList(folderPath)
 
 	if (stories.length === 0) {
-		vscode.window.showInformationMessage("No tasks found in the selected folder")
+		HostProvider.window.showMessage({
+			type: ShowMessageType.INFORMATION,
+			message: "No tasks found in the selected folder",
+		})
 	}
 
 	// Send the task data to all subscribed clients

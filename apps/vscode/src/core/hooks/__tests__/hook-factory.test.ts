@@ -603,7 +603,7 @@ console.log(JSON.stringify({
 			result.contextModification?.should.equal("Global hook only")
 		})
 
-		it("should block if workspace hook blocks even when global allows", async function () {
+		it("should block if workspace hook blocks even when global allows", async function (this: Mocha.Context) {
 			this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 			// Create allowing global hook
 			const globalHookPath = path.join(globalHooksDir, "PreToolUse")

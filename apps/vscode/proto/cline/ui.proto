@@ -249,6 +249,53 @@ message IntentEvent {
   int32 text_length = 7;
 }
 
+// HAI Task definition
+message HaiTask {
+  string id = 1;
+  string list = 2;
+  string acceptance = 3;
+  string sub_task_ticket_id = 4;
+  string status = 5;
+}
+
+// HAI Story definition
+message HaiStory {
+  string id = 1;
+  string prd_id = 2;
+  string name = 3;
+  string description = 4;
+  string story_ticket_id = 5;
+  repeated HaiTask tasks = 6;
+}
+
+// Request to load HAI tasks
+message HaiTasksLoadRequest {
+  Metadata metadata = 1;
+  string folder_path = 2; // Optional: if not provided, will show folder picker
+  bool load_default = 3; // Whether to load from previously configured folder
+}
+
+// Response containing HAI task data
+message HaiTaskDataResponse {
+  repeated HaiStory stories = 1;
+  string folder_path = 2;
+  string timestamp = 3;
+}
+
+// Request to update task status
+message UpdateTaskStatusRequest {
+  Metadata metadata = 1;
+  string folder_path = 2;
+  string task_id = 3;
+  string status = 4;
+}
+
+// Response for task status update
+message UpdateTaskStatusResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 // UiService provides methods for managing UI interactions
 service UiService {
   // Scrolls to a specific settings section in the settings view
@@ -284,6 +331,9 @@ service UiService {
   // Subscribe to worktrees button clicked events
   rpc subscribeToWorktreesButtonClicked(EmptyRequest) returns (stream Empty);
 
+  // Subscribe to HAI Build Task List button click events
+  rpc subscribeToHaiBuildTaskListClicked(EmptyRequest) returns (stream Empty);
+
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
 
@@ -302,9 +352,21 @@ service UiService {
   // Opens a URL in the default browser
   rpc openUrl(StringRequest) returns (Empty);
 
-  // Opens the Cline walkthrough
+  // Opens the HAI walkthrough
   rpc openWalkthrough(EmptyRequest) returns (Empty);
 
   // Tracks intent signals before task creation or first model activity
   rpc trackIntent(IntentEvent) returns (Empty);
+
+  // Load HAI tasks from a folder path or show folder picker if path is not provided
+  rpc loadHaiTasks(HaiTasksLoadRequest) returns (Empty);
+
+  // Reset HAI tasks and clear configuration
+  rpc resetHaiTasks(EmptyRequest) returns (Empty);
+
+  // Subscribe to HAI task data updates (streams task data when available)
+  rpc subscribeToHaiTaskData(EmptyRequest) returns (stream HaiTaskDataResponse);
+
+  // Update the status of a HAI task
+  rpc updateTaskStatus(UpdateTaskStatusRequest) returns (UpdateTaskStatusResponse);
 }

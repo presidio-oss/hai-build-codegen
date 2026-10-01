@@ -1,16 +1,23 @@
-import { HistoryIcon, PlusIcon, PuzzleIcon, SettingsIcon, UserCircleIcon } from "lucide-react"
+import { HistoryIcon, PlusIcon, SettingsIcon } from "lucide-react"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "../../context/ExtensionStateContext"
+
+// Custom MCP Server Icon component using VSCode codicon
+const McpServerIcon = ({ className, size }: { className?: string; size?: number }) => (
+	<span
+		className={`codicon codicon-server flex items-center ${className || ""}`}
+		style={{ fontSize: size ? `${size}px` : "12.5px", marginBottom: "1px" }}
+	/>
+)
 
 interface NavbarProps {
 	startNewTask: (source: "navbar") => Promise<boolean>
 }
 
 export const Navbar = ({ startNewTask }: NavbarProps) => {
-	const { navigateToHistory, navigateToSettings, navigateToAccount, navigateToMarketplace, navigateToChat } =
-		useExtensionState()
+	const { navigateToHistory, navigateToSettings, navigateToAccount, navigateToMcp, navigateToChat } = useExtensionState()
 
 	const SETTINGS_TABS = useMemo(
 		() => [
@@ -30,11 +37,11 @@ export const Navbar = ({ startNewTask }: NavbarProps) => {
 				},
 			},
 			{
-				id: "customize",
-				name: "Customize",
-				tooltip: "Customize",
-				icon: PuzzleIcon,
-				navigate: navigateToMarketplace,
+				id: "mcp",
+				name: "MCP",
+				tooltip: "MCP Servers",
+				icon: McpServerIcon,
+				navigate: navigateToMcp,
 			},
 			{
 				id: "history",
@@ -44,13 +51,6 @@ export const Navbar = ({ startNewTask }: NavbarProps) => {
 				navigate: navigateToHistory,
 			},
 			{
-				id: "account",
-				name: "Account",
-				tooltip: "Account",
-				icon: UserCircleIcon,
-				navigate: navigateToAccount,
-			},
-			{
 				id: "settings",
 				name: "Settings",
 				tooltip: "Settings",
@@ -58,7 +58,7 @@ export const Navbar = ({ startNewTask }: NavbarProps) => {
 				navigate: navigateToSettings,
 			},
 		],
-		[navigateToAccount, navigateToChat, navigateToHistory, navigateToMarketplace, navigateToSettings, startNewTask],
+		[navigateToChat, navigateToHistory, navigateToMcp, navigateToSettings, startNewTask],
 	)
 
 	return (

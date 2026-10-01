@@ -1,4 +1,5 @@
 import { defineConfig } from "@vscode/test-cli"
+import os from "os"
 import path from "path"
 
 const vscodeTestVersion = process.env.VSCODE_TEST_VERSION ?? "stable"
@@ -26,5 +27,5 @@ export default defineConfig({
 	workspaceFolder: "test-workspace",
 	version: vscodeTestVersion,
 	extensionDevelopmentPath: path.resolve("./"),
-	launchArgs: ["--disable-extensions"],
+	launchArgs: ["--disable-extensions", `--user-data-dir=${path.join(os.tmpdir(), "hai-vscode-test-user-data")}`],
 })

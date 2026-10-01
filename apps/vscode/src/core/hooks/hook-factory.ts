@@ -18,7 +18,7 @@ import {
 	TaskStartData,
 	UserPromptSubmitData,
 } from "../../shared/proto/cline/hooks"
-import { getAllHooksDirs, getWindowWorkspaceRoots } from "../storage/disk"
+import { GlobalFileNames, getAllHooksDirs, getWindowWorkspaceRoots } from "../storage/disk"
 import { HookExecutionError } from "./HookError"
 import { HookProcess } from "./HookProcess"
 
@@ -764,7 +764,7 @@ export class HookFactory {
 
 	private sessionHooksDir(): string | undefined {
 		const root = this.options?.sessionWorkspaceRoot
-		return root ? path.join(root, ".clinerules", "hooks") : undefined
+		return root ? path.join(root, GlobalFileNames.hooksDir) : undefined
 	}
 
 	private async findSessionScripts(hookName: HookName): Promise<string[]> {

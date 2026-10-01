@@ -306,10 +306,10 @@ export class Controller {
 			this.handleProviderConfigChange(event)
 		})
 
-		// IMPORTANT: Use ~/.cline/data/settings/ for the settings directory,
+		// IMPORTANT: Use ~/.hai/data/settings/ for the settings directory,
 		// NOT ensureSettingsDirectoryExists() which returns the VSCode extension
 		// storage path (HostProvider.globalStorageFsPath/settings/). The MCP
-		// settings file lives at ~/.cline/data/settings/cline_mcp_settings.json
+		// settings file lives at ~/.hai/data/settings/hai_mcp_settings.json
 		// (shared across VSCode, CLI, and JetBrains clients).
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),

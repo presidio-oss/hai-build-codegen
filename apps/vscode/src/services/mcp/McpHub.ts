@@ -34,6 +34,7 @@ import chokidar, { type FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import ReconnectingEventSource from "reconnecting-eventsource"
+import { quote as shellQuote } from "shell-quote"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
 import { fetch } from "@/shared/net"
@@ -72,6 +73,28 @@ const LIST_CHANGED_DEBOUNCE_MS = 300
 const LIST_CHANGED_MAX_WAIT_MS = 2000
 const LIST_CHANGED_MAX_RETRIES = 3
 const LIST_CHANGED_RETRY_BASE_DELAY_MS = 1000
+
+/**
+ * Resolve the actual command/args to spawn for a stdio MCP server.
+ *
+ * GUI-launched VS Code (and nested Extension Development Host windows, which
+ * inherit their parent's process.env rather than resolving their own) often
+ * has a PATH that's missing entries only set up by shell startup files (e.g.
+ * nvm, Homebrew). Since `getDefaultEnvironment()` just copies `process.env.PATH`
+ * verbatim, commands like `npx` can fail with ENOENT even though they work
+ * fine in a terminal. Routing the spawn through the user's own login shell
+ * (`$SHELL -lc "..."`) makes PATH resolution behave the same way it does in
+ * an interactive terminal, independent of whatever PATH the extension host
+ * process happened to inherit at startup.
+ */
+function resolveStdioSpawnTarget(command: string, args: string[] | undefined): { command: string; args: string[] } {
+	if (process.platform === "win32") {
+		return { command, args: args ?? [] }
+	}
+	const shell = process.env.SHELL || "/bin/sh"
+	const commandLine = shellQuote([command, ...(args ?? [])])
+	return { command: shell, args: ["-lc", commandLine] }
+}
 
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -481,9 +504,10 @@ export class McpHub {
 
 			switch (expandedConfig.type) {
 				case "stdio": {
+					const spawnTarget = resolveStdioSpawnTarget(expandedConfig.command, expandedConfig.args)
 					transport = new StdioClientTransport({
-						command: expandedConfig.command,
-						args: expandedConfig.args,
+						command: spawnTarget.command,
+						args: spawnTarget.args,
 						cwd: expandedConfig.cwd,
 						env: {
 							...getDefaultEnvironment(),

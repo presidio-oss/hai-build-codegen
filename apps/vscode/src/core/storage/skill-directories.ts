@@ -2,7 +2,7 @@ import os from "os"
 import * as path from "path"
 
 const SKILL_DIRECTORY_NAMES = {
-	clineruleSkillsDir: ".clinerules/skills",
+	clineruleSkillsDir: ".hairules/skills",
 	clineSkillsDir: ".cline/skills",
 	claudeSkillsDir: ".claude/skills",
 	agentsSkillsDir: ".agents/skills",

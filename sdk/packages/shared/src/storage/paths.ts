@@ -31,7 +31,7 @@ export {
 	isChatWorkspacePath,
 } from "./chat-workspace-paths";
 
-const DEPRECATED_CONFIG_DIR = ".clinerules";
+const DEPRECATED_CONFIG_DIR = ".hairules";
 const CLINE_CONFIG_DIR = ".cline";
 /**
  * The vendor-neutral `.agents` directory. Originally adopted only for the
@@ -78,7 +78,7 @@ export function resolveChatWorkspacePath(): string {
 	);
 }
 
-export const CLINE_MCP_SETTINGS_FILE_NAME = "cline_mcp_settings.json";
+export const CLINE_MCP_SETTINGS_FILE_NAME = "hai_mcp_settings.json";
 export const CLINE_CONNECTOR_SETTINGS_FILE_NAME = "settings.json";
 
 function resolveDefaultHomeDir(): string {
@@ -156,11 +156,11 @@ export function resolveClineDir(): string {
 	if (envDir) {
 		return envDir;
 	}
-	return join(HOME_DIR, ".cline");
+	return join(HOME_DIR, ".hai");
 }
 
 export function resolveDocumentsClineDirectoryPath(): string {
-	return join(HOME_DIR, "Documents", "Cline");
+	return join(HOME_DIR, "Documents", "HAI");
 }
 
 type DocumentsExtensionName =
@@ -565,12 +565,12 @@ export function resolveGlobalRulesConfigPaths(): string[] {
 		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
 		// The VS Code Rules tab resolves Documents via `xdg-user-dir DOCUMENTS`,
 		// which prints bare $HOME when unconfigured (WSL/headless), putting
-		// global rules at ~/Cline/Rules instead of ~/Documents/Cline/Rules
+		// global rules at ~/HAI/Rules instead of ~/Documents/HAI/Rules
 		// (cline/cline#13542).
-		join(HOME_DIR, "Cline", "Rules"),
+		join(HOME_DIR, "HAI", "Rules"),
 		resolveDocumentsExtensionPath("Rules"),
 		...resolveRedirectedDocumentsPaths().map((documentsPath) =>
-			join(documentsPath, "Cline", "Rules"),
+			join(documentsPath, "HAI", "Rules"),
 		),
 	]);
 }
@@ -597,7 +597,7 @@ export function resolveWorkflowsConfigSearchPaths(
 ): string[] {
 	return dedupePaths([
 		workspacePath
-			? join(workspacePath, ".clinerules", WORKFLOWS_CONFIG_DIRECTORY_NAME)
+			? join(workspacePath, DEPRECATED_CONFIG_DIR, WORKFLOWS_CONFIG_DIRECTORY_NAME)
 			: "",
 		resolveDocumentsExtensionPath("Workflows"),
 		join(resolveClineDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),

@@ -1,6 +1,6 @@
+import { GENERATED_PROVIDER_MODELS, type ModelInfo } from "@cline/llms"
 import { Langfuse, LangfuseTraceClient } from "langfuse"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
-import { anthropicModels, bedrockModels, geminiModels, type ModelInfo, vertexModels } from "@/shared/api"
 import { Logger } from "@/shared/services/Logger"
 import { getGitUserInfo } from "@/utils/git"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./ITelemetryProvider"
@@ -60,17 +60,15 @@ export class LangfuseProvider implements ITelemetryProvider {
 
 				switch (modelProvider) {
 					case "bedrock":
-						modelConfig = Object.entries(bedrockModels).find(([key]) => modelId.includes(key))?.[1]
-						break
 					case "anthropic":
-						modelConfig = Object.entries(anthropicModels).find(([key]) => modelId.includes(key))?.[1]
-						break
 					case "vertex":
-						modelConfig = Object.entries(vertexModels).find(([key]) => modelId.includes(key))?.[1]
+					case "gemini": {
+						const providerCatalog = GENERATED_PROVIDER_MODELS.providers[modelProvider]
+						modelConfig = providerCatalog
+							? Object.entries(providerCatalog).find(([key]) => modelId.includes(key))?.[1]
+							: undefined
 						break
-					case "gemini":
-						modelConfig = Object.entries(geminiModels).find(([key]) => modelId.includes(key))?.[1]
-						break
+					}
 					default:
 						modelConfig = undefined
 				}
@@ -100,12 +98,12 @@ export class LangfuseProvider implements ITelemetryProvider {
 						embeddingProvider: "none",
 						maxTokens: modelConfig?.maxTokens || 8192,
 						contextWindow: modelConfig?.contextWindow || 200000,
-						supportsImages: modelConfig?.supportsImages || false,
-						supportsPromptCache: modelConfig?.supportsPromptCache || true,
-						inputPrice: modelConfig?.inputPrice || 0.8,
-						outputPrice: modelConfig?.outputPrice || 4.0,
-						cacheWritesPrice: modelConfig?.cacheWritesPrice || 1.0,
-						cacheReadsPrice: modelConfig?.cacheReadsPrice || 0.08,
+						supportsImages: modelConfig?.capabilities?.includes("images") ?? false,
+						supportsPromptCache: modelConfig?.capabilities?.includes("prompt-cache") ?? true,
+						inputPrice: modelConfig?.pricing?.input ?? 0.8,
+						outputPrice: modelConfig?.pricing?.output ?? 4.0,
+						cacheWritesPrice: modelConfig?.pricing?.cacheWrite ?? 1.0,
+						cacheReadsPrice: modelConfig?.pricing?.cacheRead ?? 0.08,
 					},
 				} as any)
 			} else {

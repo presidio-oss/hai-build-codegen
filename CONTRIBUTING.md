@@ -1,13 +1,13 @@
-# Contributing to Cline
+# Contributing to HAI
 
-We're thrilled you're interested in contributing to Cline. Whether you're fixing a bug, adding a feature, or improving our docs, every contribution makes Cline smarter! To keep our community vibrant and welcoming, all members must adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
+We're thrilled you're interested in contributing to HAI. Whether you're fixing a bug, adding a feature, or improving our docs, every contribution makes HAI smarter! To keep our community vibrant and welcoming, all members must adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Reporting Bugs or Issues
 
-Bug reports help make Cline better for everyone! Before creating a new issue, please [search existing ones](https://github.com/cline/cline/issues) to avoid duplicates. When you're ready to report a bug, head over to our [issues page](https://github.com/cline/cline/issues/new/choose) where you'll find a template to help you with filling out the relevant information.
+Bug reports help make HAI better for everyone! Before creating a new issue, please [search existing ones](https://github.com/presidio-oss/hai-build-codegen/issues) to avoid duplicates. When you're ready to report a bug, head over to our [issues page](https://github.com/presidio-oss/hai-build-codegen/issues/new/choose) where you'll find a template to help you with filling out the relevant information.
 
 <blockquote class='warning-note'>
-     🔐 <b>Important:</b> If you discover a security vulnerability, please use the <a href="https://github.com/cline/cline/security/advisories/new">GitHub security tool to report it privately</a>.
+     🔐 <b>Important:</b> If you discover a security vulnerability, please use the <a href="https://github.com/presidio-oss/hai-build-codegen/security/advisories/new">Github security tool to report it privately</a>.
 </blockquote>
 
 
@@ -15,7 +15,7 @@ Bug reports help make Cline better for everyone! Before creating a new issue, pl
 
 All contributions must begin with a GitHub Issue, unless the change is for small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality.
 **For features and contributions**:
-- First check the [Feature Requests discussions board](https://github.com/cline/cline/discussions/categories/feature-requests) for similar ideas
+- First check the [Feature Requests discussions board](https://github.com/presidio-oss/hai-build-codegen/discussions/categories/feature-requests) for similar ideas
 - If your idea is new, create a new feature request  
 - Wait for approval from core maintainers before starting implementation
 - Once approved, feel free to begin working on a PR with the help of our community!
@@ -25,9 +25,9 @@ All contributions must begin with a GitHub Issue, unless the change is for small
 
 ## Deciding What to Work On
 
-Looking for a good first contribution? Check out issues labeled ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) or ["help wanted"](https://github.com/cline/cline/labels/help%20wanted). These are specifically curated for new contributors and areas where we'd love some help!
+Looking for a good first contribution? Check out issues labeled ["good first issue"](https://github.com/presidio-oss/hai-build-codegen/labels/good%20first%20issue) or ["help wanted"](https://github.com/presidio-oss/hai-build-codegen/labels/help%20wanted). These are specifically curated for new contributors and areas where we'd love some help!
 
-We also welcome contributions to our [documentation](https://github.com/cline/cline/tree/main/docs)! Whether it's fixing typos, improving existing guides, or creating new educational content - we'd love to build a community-driven repository of resources that helps everyone get the most out of Cline. You can start by diving into `/docs` and looking for areas that need improvement.
+We also welcome contributions to our [documentation](https://github.com/presidio-oss/hai-build-codegen/tree/main/docs)! Whether it's fixing typos, improving existing guides, or creating new educational content - we'd love to build a community-driven repository of resources that helps everyone get the most out of hai. You can start by diving into `/docs` and looking for areas that need improvement.
 
 ## Development Setup
 
@@ -36,16 +36,16 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 1. Clone the repository _(Requires [git-lfs](https://git-lfs.com/))_:
     ```bash
-    git clone https://github.com/cline/cline.git
+    git clone https://github.com/presidio-oss/hai-build-codegen.git
     ```
 2. Open the project in VSCode:
     ```bash
-    code cline
+    code hai-build-codegen
     ```
 3. Install [bun](https://bun.com)
 4. Install the necessary dependencies for the extension and webview-gui:
     ```bash
-    cd apps/vscode && bun run install:all && cd ../..
+    cd apps/vscode && npm run install:all && cd ../..
     cd sdk && bun run build && cd ..
     ```
 5. Generate Protocol Buffer files (required before first build):
@@ -61,8 +61,8 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 2. Push your branch and create a PR on GitHub. Our CI will:
    - Run tests and checks
 3. Testing
-    - Run `cd apps/vscode && bun run test` to run tests locally. 
-    - Before submitting PR, run `bun run format:fix` to format your code
+    - Run `cd apps/vscode && npm run test` to run tests locally. 
+    - Before submitting PR, run `npm run format:fix` to format your code
 
 ### Extension
 
@@ -74,12 +74,12 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 2. **Local Development**
     - cd into the vscode extension, `cd apps/vscode`
-    - Run `bun run install:all` to install dependencies
-    - Run `bun run protos` to generate Protocol Buffer files (required before first build)
-    - Run `bun run test` to run tests locally
+    - Run `npm run install:all` to install dependencies
+    - Run `npm run protos` to generate Protocol Buffer files (required before first build)
+    - Run `npm run test` to run tests locally
     - Run → Start Debugging or `>Debug: Select and Start Debugging` and wait for a new VS Code instance to open
-    - **Terminal Workflow**: Use `bun run dev` (generates protos + runs watch mode) or `bun run watch` (if protos already generated)
-    - Before submitting PR, run `bun run format:fix` to format your code
+    - **Terminal Workflow**: Use `npm run dev` (generates protos + runs watch mode) or `npm run watch` (if protos already generated)
+    - Before submitting PR, run `npm run format:fix` to format your code
 
 3. **Linux-specific Setup**
     VS Code extension tests on Linux require the following system libraries:
@@ -125,7 +125,7 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 ## Writing and Submitting Code
 
-Anyone can contribute code to Cline, but we ask that you follow these guidelines to ensure your contributions can be smoothly integrated:
+Anyone can contribute code to HAI, but we ask that you follow these guidelines to ensure your contributions can be smoothly integrated:
 
 1. **Keep Pull Requests Focused**
 
@@ -135,8 +135,8 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
 2. **Code Quality**
 
-    - Run `bun run lint` to check code style
-    - Run `bun run format` to automatically format code
+    - Run `npm run lint` to check code style
+    - Run `npm run format` to automatically format code
     - All PRs must pass CI checks which include both linting and formatting
     - Address any warnings or errors from linter before submitting
     - Follow TypeScript best practices and maintain type safety
@@ -144,19 +144,19 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 3. **Testing**
 
     - Add tests for new features
-    - Run `bun test` to ensure all tests pass
+    - Run `npm test` to ensure all tests pass
     - Update existing tests if your changes affect them
     - Include both unit tests and integration tests where appropriate
 
     **End-to-End (E2E) Testing**
     
-    Cline includes comprehensive E2E tests using Playwright that simulate real user interactions with the extension in VS Code:
+    HAI includes comprehensive E2E tests using Playwright that simulate real user interactions with the extension in VS Code:
     
     - **Running E2E tests:**
       ```bash
-      bun run test:e2e        # Build and run all E2E tests
-      bun run e2e             # Run tests without rebuilding
-      bun run test:e2e -- --debug  # Run with interactive debugger
+      npm run test:e2e        # Build and run all E2E tests
+      npm run e2e             # Run tests without rebuilding
+      npm run test:e2e -- --debug  # Run with interactive debugger
       ```
     
     - **Writing E2E tests:**
@@ -173,7 +173,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
       - Element inspection and selector validation
     
     - **Test environment:**
-      - Automated VS Code setup with Cline extension loaded
+      - Automated VS Code setup with HAI extension loaded
       - Mock API server for backend testing
       - Temporary workspaces with test fixtures
       - Video recording for failed tests
@@ -206,4 +206,4 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
 By submitting a pull request, you agree that your contributions will be licensed under the same license as the project ([Apache 2.0](LICENSE)).
 
-Remember: Contributing to Cline isn't just about writing code - it's about being part of a community that's shaping the future of AI-assisted development. Let's build something amazing together! 🚀
+Remember: Contributing to HAI isn't just about writing code - it's about being part of a community that's shaping the future of AI-assisted development. Let's build something amazing together! 🚀

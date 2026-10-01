@@ -4,6 +4,7 @@ export {
 	type ProviderLocalCli,
 	resolveProviderLocalCli,
 } from "@cline/shared";
+export { GENERATED_PROVIDER_MODELS } from "./catalog/catalog.generated";
 export type {
 	GetModelsForProviderOptions,
 	ModelCollection,

@@ -3,6 +3,7 @@
  */
 
 import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
+import { IHaiClineTask } from "@shared/hai-task"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
 import type { ButtonActionType, SubmittingButtonActionType } from "../shared/buttonConfig"
 
@@ -129,4 +130,8 @@ export interface WelcomeSectionProps {
 	version: string
 	taskHistory: any[]
 	shouldShowQuickWins: boolean
+
+	// TAG:HAI
+	onTaskSelect: (task: IHaiClineTask) => void
+	showHaiTaskListView: () => void
 }

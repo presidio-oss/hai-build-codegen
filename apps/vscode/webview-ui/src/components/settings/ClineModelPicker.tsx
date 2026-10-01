@@ -152,7 +152,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			setClineFreeModels(free)
 			return true
 		} catch (error) {
-			console.error("Failed to refresh Cline recommended models:", error)
+			console.error("Failed to refresh HAI recommended models:", error)
 			return false
 		}
 	}, [])
@@ -220,7 +220,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		void commitSelection(currentMode, {
 			providerId: "cline",
 			modelId: newModelId,
-		}).catch((err) => console.error("Failed to commit Cline model selection:", err))
+		}).catch((err) => console.error("Failed to commit HAI model selection:", err))
 
 		void handleModeFieldsChange(
 			{

@@ -165,7 +165,7 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(events[0].properties?.actual_bundle, "legacy")
 		assert.strictEqual(events[0].properties?.fallback, true)
 		assert.strictEqual(events[0].properties?.error_type, "TypeError")
-		assert.strictEqual((events[0].properties?.error_message as string).length, ROLLOUT_ERROR_MESSAGE_LIMIT)
+		assert.strictEqual((events[0].properties!.error_message as string).length, ROLLOUT_ERROR_MESSAGE_LIMIT)
 		assert.strictEqual(events[0].properties?.extension_variant, "legacy")
 	})
 
@@ -184,7 +184,7 @@ describe("TelemetryService metrics", () => {
 		const refresh = provider.logs.find((entry) => entry.event === "remote_config.refresh")
 		assert.strictEqual(refresh?.properties?.outcome, "applied")
 		assert.strictEqual(refresh?.properties?.duration_ms, 13)
-		assert.strictEqual((refresh?.properties?.config_version as string).length, 100)
+		assert.strictEqual((refresh!.properties!.config_version as string).length, 100)
 		assert.strictEqual(refresh?.properties?.extension_variant, "next")
 		assert.strictEqual(refresh?.properties?.organization_id, undefined)
 		const gate = provider.logs.find((entry) => entry.event === "remote_config.session_gate")

@@ -5,13 +5,13 @@ import { ClineRulesToggles } from "@shared/cline-rules"
 import { Controller } from "@/core/controller"
 
 /**
- * Sub-directories of `.clinerules` that hold non-rule config and must not be
+ * Sub-directories of `.hairules` that hold non-rule config and must not be
  * surfaced as rules.
  */
 const CLINERULES_EXCLUDED_SUBDIRECTORIES: string[][] = [
-	[".clinerules", "workflows"],
-	[".clinerules", "hooks"],
-	[".clinerules", "skills"],
+	[".hairules", "workflows"],
+	[".hairules", "hooks"],
+	[".hairules", "skills"],
 ]
 
 /**
@@ -44,7 +44,7 @@ export async function refreshClineRulesToggles(
 	// Global toggles: the Documents-based directory the Rules tab creates files
 	// in (resolved through the OS, so it follows redirected Documents folders),
 	// plus every global location the shared SDK resolver loads rules from
-	// (e.g. ~/.cline/rules), so the panel shows what actually reaches the model.
+	// (e.g. ~/.hai/rules), so the panel shows what actually reaches the model.
 	const globalClineRulesToggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 	const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 	const globalRuleDirectories = [...new Set([globalClineRulesFilePath, ...resolveGlobalRulesConfigPaths()])]
@@ -52,7 +52,7 @@ export async function refreshClineRulesToggles(
 	controller.stateManager.setGlobalState("globalClineRulesToggles", updatedGlobalToggles)
 
 	// Local toggles: both supported workspace layouts — the legacy
-	// `.clinerules` directory (or single file) and `.cline/rules` — via the
+	// `.hairules` directory (or single file) and `.cline/rules` — via the
 	// same shared resolver the SDK runtime loads rules with (cline/cline#14186).
 	const localClineRulesToggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 	const updatedLocalToggles = await synchronizeRuleTogglesAcrossDirectories(
