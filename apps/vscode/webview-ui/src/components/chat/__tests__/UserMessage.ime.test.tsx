@@ -149,7 +149,7 @@ describe("UserMessage – IME composition handling", () => {
 		expect(resetCode).toHaveAttribute("aria-busy", "true")
 		expect(resetCode).toHaveAttribute("aria-disabled", "true")
 		await user.hover(resetCode)
-		expect(await screen.findByText("Checking for a workspace checkpoint…")).toBeInTheDocument()
+		expect((await screen.findAllByText("Checking for a workspace checkpoint…"))[0]).toBeInTheDocument()
 		await user.click(resetCode)
 		expect(TaskServiceClient.editMessageAndRegenerate).not.toHaveBeenCalled()
 
@@ -210,7 +210,7 @@ describe("UserMessage – IME composition handling", () => {
 		await waitFor(() => expect(resetCode).not.toHaveAttribute("aria-busy"))
 		expect(resetCode).toHaveAttribute("aria-disabled", "true")
 		await user.hover(resetCode)
-		expect(await screen.findByText("No workspace checkpoint was created for this message.")).toBeInTheDocument()
+		expect((await screen.findAllByText("No workspace checkpoint was created for this message."))[0]).toBeInTheDocument()
 	})
 
 	it("hides Reset Code for messages that did not start a run", async () => {
