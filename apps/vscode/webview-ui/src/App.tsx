@@ -7,10 +7,11 @@ import ChatView from "./components/chat/ChatView"
 import DetailedView from "./components/hai/DetailedView"
 import { HaiTasksList } from "./components/hai/hai-tasks-list"
 import HistoryView from "./components/history/HistoryView"
+import MarketplaceView from "./components/marketplace/MarketplaceView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
+import { openClinePassSubscriptionIfPending } from "./components/onboarding/clinePassSubscribe"
 import OnboardingView from "./components/onboarding/OnboardingView"
 import SettingsView from "./components/settings/SettingsView"
-import WelcomeView from "./components/welcome/WelcomeView"
 import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
@@ -22,55 +23,70 @@ const AppContent = () => {
 		didHydrateState,
 		showWelcome,
 		shouldShowAnnouncement,
+		showMarketplace,
 		showMcp,
 		mcpTab,
 		showSettings,
+		settingsNavigationRequest,
 		showHistory,
 		showAccount,
 		showWorktrees,
-		showAnnouncement,
-		onboardingModels,
-		navigateToHaiTaskList: contextNavigateToHaiTaskList,
 		showHaiTaskList,
-		hideHaiTaskList,
+		showAnnouncement,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
 		closeMcpView,
-		navigateToHistory: contextNavigateToHistory,
-		navigateToSettings: contextNavigateToSettings,
-		navigateToAccount: contextNavigateToAccount,
-		navigateToMcp: contextNavigateToMcp,
-		navigateToChat: contextNavigateToChat,
+		navigateToHistory,
+		navigateToHaiTaskList,
 		hideSettings,
 		hideHistory,
 		hideAccount,
 		hideWorktrees,
+		hideHaiTaskList,
+		closeMarketplaceView,
 		hideAnnouncement,
 	} = useExtensionState()
 
-	const [selectedTask, setSelectedTask] = useState<IHaiClineTask | null>(null)
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
+
+	const [selectedTask, setSelectedTask] = useState<IHaiClineTask | null>(null)
 	const [taskList, setTaskList] = useState<IHaiStory[]>([])
 	const [taskLastUpdatedTs, setTaskLastUpdatedTs] = useState<string>("")
 	const [haiConfigFolder, setHaiConfigFolder] = useState<string>("")
 	const [detailedTask, setDetailedTask] = useState<IHaiTask | null>(null)
 	const [detailedStory, setDetailedStory] = useState<IHaiStory | null>(null)
-	const [_showExperts, setShowExperts] = useState(false)
+
+	const showUpdateAnnouncementModal = useCallback(() => {
+		setShowAnnouncement(true)
+		UiServiceClient.onDidShowAnnouncement({} as EmptyRequest)
+			.then((response: Boolean) => {
+				setShouldShowAnnouncement(response.value)
+			})
+			.catch((error) => {
+				console.error("Failed to acknowledge announcement:", error)
+			})
+	}, [setShouldShowAnnouncement, setShowAnnouncement])
 
 	useEffect(() => {
-		if (shouldShowAnnouncement) {
-			setShowAnnouncement(true)
-
-			// Use the gRPC client instead of direct WebviewMessage
-			UiServiceClient.onDidShowAnnouncement({} as EmptyRequest)
-				.then((response: Boolean) => {
-					setShouldShowAnnouncement(response.value)
-				})
-				.catch((error) => {
-					console.error("Failed to acknowledge announcement:", error)
-				})
+		if (!didHydrateState || showWelcome || !shouldShowAnnouncement || showAnnouncement) {
+			return
 		}
-	}, [shouldShowAnnouncement, setShouldShowAnnouncement, setShowAnnouncement])
+		showUpdateAnnouncementModal()
+	}, [didHydrateState, showWelcome, shouldShowAnnouncement, showAnnouncement, showUpdateAnnouncementModal])
+
+	// Open the ClinePass subscription page once auth completes. Lives here (not in OnboardingView)
+	// because handleAuthCallback unmounts onboarding before the clineUser update arrives.
+	useEffect(() => {
+		if (clineUser?.uid) {
+			openClinePassSubscriptionIfPending(clineUser.appBaseUrl)
+		}
+	}, [clineUser?.uid, clineUser?.appBaseUrl])
+
+	// Clear the HAI task detail view whenever another top-level view is opened
+	useEffect(() => {
+		setDetailedTask(null)
+		setDetailedStory(null)
+	}, [showSettings, showHistory, showMcp, showAccount, showWorktrees, showMarketplace])
 
 	// Subscribe to HAI task data updates
 	useEffect(() => {
@@ -114,12 +130,9 @@ const AppContent = () => {
 	useEffect(() => {
 		const unsubscribe = UiServiceClient.subscribeToHaiBuildTaskListClicked({} as EmptyRequest, {
 			onResponse: () => {
-				console.log("[DEBUG] HAI Build Task List button clicked - clearing detailed state")
-				// Clear detailed state when button is clicked
 				setDetailedTask(null)
 				setDetailedStory(null)
-				// Then navigate to task list
-				contextNavigateToHaiTaskList()
+				navigateToHaiTaskList()
 			},
 			onError: (error) => {
 				console.error("Error in HAI Build Task List button clicked subscription:", error)
@@ -134,127 +147,7 @@ const AppContent = () => {
 				unsubscribe()
 			}
 		}
-	}, [contextNavigateToHaiTaskList])
-
-	// Subscribe to MCP button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToMcpButtonClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] MCP button clicked - clearing detailed state")
-				setDetailedTask(null)
-				setDetailedStory(null)
-				contextNavigateToMcp()
-			},
-			onError: (error) => {
-				console.error("Error in MCP button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("MCP button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToMcp])
-
-	// Subscribe to History button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToHistoryButtonClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] History button clicked - clearing detailed state")
-				setDetailedTask(null)
-				setDetailedStory(null)
-				contextNavigateToHistory()
-			},
-			onError: (error) => {
-				console.error("Error in History button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("History button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToHistory])
-
-	// Subscribe to Account button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToAccountButtonClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] Account button clicked - clearing detailed state")
-				setDetailedTask(null)
-				setDetailedStory(null)
-				contextNavigateToAccount()
-			},
-			onError: (error) => {
-				console.error("Error in Account button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("Account button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToAccount])
-
-	// Subscribe to Settings button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToSettingsButtonClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] Settings button clicked - clearing detailed state")
-				setDetailedTask(null)
-				setDetailedStory(null)
-				contextNavigateToSettings()
-			},
-			onError: (error) => {
-				console.error("Error in Settings button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("Settings button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToSettings])
-
-	// Subscribe to Chat/New Task button clicks and clear detailed state
-	useEffect(() => {
-		const unsubscribe = UiServiceClient.subscribeToChatButtonClicked({} as EmptyRequest, {
-			onResponse: () => {
-				console.log("[DEBUG] Chat/New Task button clicked - clearing detailed state")
-				setDetailedTask(null)
-				setDetailedStory(null)
-				contextNavigateToChat()
-			},
-			onError: (error) => {
-				console.error("Error in Chat button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("Chat button clicked subscription completed")
-			},
-		})
-
-		return () => {
-			if (unsubscribe) {
-				unsubscribe()
-			}
-		}
-	}, [contextNavigateToChat])
+	}, [navigateToHaiTaskList])
 
 	// Handler for loading/configuring HAI tasks
 	const handleConfigure = useCallback(
@@ -308,52 +201,6 @@ const AppContent = () => {
 		}
 	}, [])
 
-	// Wrapped navigation functions that clear detailed state
-	const navigateToHistory = useCallback(() => {
-		setDetailedTask(null)
-		setDetailedStory(null)
-		contextNavigateToHistory()
-	}, [contextNavigateToHistory])
-
-	const navigateToSettings = useCallback(
-		(targetSection?: string) => {
-			setDetailedTask(null)
-			setDetailedStory(null)
-			contextNavigateToSettings(targetSection)
-		},
-		[contextNavigateToSettings],
-	)
-
-	const navigateToAccount = useCallback(() => {
-		setDetailedTask(null)
-		setDetailedStory(null)
-		contextNavigateToAccount()
-	}, [contextNavigateToAccount])
-
-	const navigateToMcp = useCallback(
-		(tab?: any) => {
-			setDetailedTask(null)
-			setDetailedStory(null)
-			contextNavigateToMcp(tab)
-		},
-		[contextNavigateToMcp],
-	)
-
-	const navigateToHaiTaskList = useCallback(() => {
-		setDetailedTask(null)
-		setDetailedStory(null)
-		contextNavigateToHaiTaskList()
-	}, [contextNavigateToHaiTaskList])
-
-	const navigateToChat = useCallback(() => {
-		setDetailedTask(null)
-		setDetailedStory(null)
-		contextNavigateToChat()
-	}, [contextNavigateToChat])
-
-	// Hide function for experts
-	const _hideExperts = useCallback(() => setShowExperts(false), [])
-
 	if (!didHydrateState) {
 		return null
 	}
@@ -379,8 +226,11 @@ const AppContent = () => {
 				/>
 			) : (
 				<>
-					{showSettings && <SettingsView onDone={hideSettings} />}
+					{showSettings && <SettingsView navigationRequest={settingsNavigationRequest} onDone={hideSettings} />}
 					{showHistory && <HistoryView onDone={hideHistory} />}
+					{showMarketplace && (
+						<MarketplaceView initialType={mcpTab ? "mcp" : undefined} onDone={closeMarketplaceView} />
+					)}
 					{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 					{showAccount && (
 						<AccountView
@@ -390,6 +240,7 @@ const AppContent = () => {
 							organizations={organizations}
 						/>
 					)}
+					{showWorktrees && <WorktreesView onDone={hideWorktrees} />}
 					{showHaiTaskList && (
 						<HaiTasksList
 							haiTaskLastUpdatedTs={taskLastUpdatedTs}
@@ -409,7 +260,15 @@ const AppContent = () => {
 					<ChatView
 						haiConfigFolder={haiConfigFolder}
 						hideAnnouncement={hideAnnouncement}
-						isHidden={showSettings || showHistory || showMcp || showAccount || showHaiTaskList}
+						isHidden={
+							showSettings ||
+							showHistory ||
+							showMarketplace ||
+							showMcp ||
+							showAccount ||
+							showWorktrees ||
+							showHaiTaskList
+						}
 						onTaskSelect={(selectedTask: IHaiClineTask | null) => {
 							setSelectedTask(selectedTask)
 						}}

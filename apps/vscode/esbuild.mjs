@@ -88,47 +88,12 @@ const esbuildProblemMatcherPlugin = {
 	},
 }
 
-const copyWasmFiles = {
-	name: "copy-wasm-files",
-	setup(build) {
-		build.onEnd(() => {
-			// tree sitter
-			const sourceDir = path.join(__dirname, "node_modules", "web-tree-sitter")
-			const targetDir = path.join(__dirname, destDir)
-
-			// Copy tree-sitter.wasm
-			fs.copyFileSync(path.join(sourceDir, "tree-sitter.wasm"), path.join(targetDir, "tree-sitter.wasm"))
-
-			// Copy language-specific WASM files
-			const languageWasmDir = path.join(__dirname, "node_modules", "tree-sitter-wasms", "out")
-			const languages = [
-				"typescript",
-				"tsx",
-				"python",
-				"rust",
-				"javascript",
-				"go",
-				"cpp",
-				"c",
-				"c_sharp",
-				"ruby",
-				"java",
-				"php",
-				"swift",
-				"kotlin",
-			]
-
-			languages.forEach((lang) => {
-				const filename = `tree-sitter-${lang}.wasm`
-				fs.copyFileSync(path.join(languageWasmDir, filename), path.join(targetDir, filename))
-			})
-		})
-	},
-}
-
 const buildEnvVars = {
 	"import.meta.url": "_importMetaUrl",
 	"process.env.IS_STANDALONE": JSON.stringify(standalone ? "true" : "false"),
+	// Always inline these values so ordinary builds cannot be mislabeled by a
+	// user's runtime environment. Only the combined rollout workflow sets them.
+	"process.env.CLINE_ROLLOUT_VARIANT": JSON.stringify(process.env.CLINE_ROLLOUT_VARIANT || ""),
 }
 
 if (production) {
@@ -157,6 +122,15 @@ if (process.env.OTEL_LOGS_EXPORTER) {
 }
 if (process.env.OTEL_METRICS_EXPORTER) {
 	buildEnvVars["process.env.OTEL_METRICS_EXPORTER"] = JSON.stringify(process.env.OTEL_METRICS_EXPORTER)
+}
+if (process.env.OTEL_TRACES_EXPORTER) {
+	buildEnvVars["process.env.OTEL_TRACES_EXPORTER"] = JSON.stringify(process.env.OTEL_TRACES_EXPORTER)
+}
+if (process.env.CLINE_TRACE_SAMPLE_PERCENT) {
+	buildEnvVars["process.env.CLINE_TRACE_SAMPLE_PERCENT"] = JSON.stringify(process.env.CLINE_TRACE_SAMPLE_PERCENT)
+}
+if (process.env.CLINE_TRACE_RECORD_CONTENT) {
+	buildEnvVars["process.env.CLINE_TRACE_RECORD_CONTENT"] = JSON.stringify(process.env.CLINE_TRACE_RECORD_CONTENT)
 }
 if (process.env.OTEL_EXPORTER_OTLP_PROTOCOL) {
 	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_PROTOCOL"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL)
@@ -192,7 +166,6 @@ const baseConfig = {
 	define: buildEnvVars,
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
-		copyWasmFiles,
 		aliasResolverPlugin,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
@@ -200,6 +173,7 @@ const baseConfig = {
 	format: "cjs",
 	sourcesContent: false,
 	platform: "node",
+	target: "node22.15",
 	banner: {
 		js: "const _importMetaUrl=require('url').pathToFileURL(__filename)",
 	},

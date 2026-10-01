@@ -18,10 +18,14 @@
 		"resolveJsonModule": true,
 		"rootDir": ".",
 		"skipLibCheck": true,
-		"typeRoots": ["./types", "./node_modules/@types"],
 		"sourceMap": true,
 		"strict": true,
 		"target": "es2022",
+		"typeRoots": [
+			"./node_modules/@types",
+			"../../node_modules/@types",
+			"./src/types"
+		],
 		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false,
 		"paths": {
@@ -66,8 +70,7 @@
 		"webview-ui",
 		"src/test/e2e/**/*",
 		"src/test/scenarios/**/*",
-		"src/**/__tests__/**/*",
-		"src/**/*.test.ts",
-		"src/test/**/*"
+		"src/test/cline-core-vitest-stub.ts",
+		"src/test/bun-test-preload.ts"
 	]
 }

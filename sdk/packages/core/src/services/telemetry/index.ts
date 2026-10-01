@@ -1,3 +1,4 @@
+export { resolveCoreDeviceId, resolveCoreDistinctId } from "./distinct-id";
 export type {
 	ITelemetryAdapter,
 	TelemetryArray,
@@ -20,3 +21,9 @@ export {
 	OpenTelemetryProvider,
 	type OpenTelemetryProviderOptions,
 } from "./OpenTelemetryProvider";
+export {
+	type ClientTelemetryContext,
+	createClientScopedTelemetryService,
+	createScopedTelemetryService,
+	resolveClientTelemetryProperties,
+} from "./scoped-telemetry";

@@ -2,7 +2,6 @@ import { HistoryIcon, PlusIcon, SettingsIcon } from "lucide-react"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { TaskServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 
 // Custom MCP Server Icon component using VSCode codicon
@@ -13,7 +12,11 @@ const McpServerIcon = ({ className, size }: { className?: string; size?: number 
 	/>
 )
 
-export const Navbar = () => {
+interface NavbarProps {
+	startNewTask: (source: "navbar") => Promise<boolean>
+}
+
+export const Navbar = ({ startNewTask }: NavbarProps) => {
 	const { navigateToHistory, navigateToSettings, navigateToAccount, navigateToMcp, navigateToChat } = useExtensionState()
 
 	const SETTINGS_TABS = useMemo(
@@ -23,13 +26,14 @@ export const Navbar = () => {
 				name: "Chat",
 				tooltip: "New Task",
 				icon: PlusIcon,
-				navigate: () => {
-					// Close the current task, then navigate to the chat view
-					TaskServiceClient.clearTask({})
-						.catch((error) => {
-							console.error("Failed to clear task:", error)
-						})
-						.finally(() => navigateToChat())
+				navigate: async () => {
+					try {
+						if (await startNewTask("navbar")) {
+							navigateToChat()
+						}
+					} catch (error) {
+						console.error("Failed to clear task:", error)
+					}
 				},
 			},
 			{
@@ -54,7 +58,7 @@ export const Navbar = () => {
 				navigate: navigateToSettings,
 			},
 		],
-		[navigateToChat, navigateToHistory, navigateToMcp, navigateToSettings],
+		[navigateToChat, navigateToHistory, navigateToMcp, navigateToSettings, startNewTask],
 	)
 
 	return (

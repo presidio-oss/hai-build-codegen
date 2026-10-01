@@ -22,6 +22,7 @@ interface RequestStartRowProps {
 	classNames?: string
 	isExpanded: boolean
 	handleToggle: () => void
+	retryFailedRequest?: () => Promise<boolean>
 }
 
 // State type for api_req_started rendering
@@ -30,12 +31,13 @@ type ApiReqState = "pre" | "thinking" | "error" | "final"
 // Helper to format search regex for display - show all terms separated by |
 const formatSearchRegex = (regex: string, path: string, filePattern?: string): string => {
 	const cleanedPath = cleanPathPrefix(path)
+	const pathDisplay = cleanedPath ? `${cleanedPath}/` : "codebase"
 	const terms = regex
 		.split("|")
 		.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
 		.filter(Boolean)
 		.join(" | ")
-	return filePattern && filePattern !== "*" ? `"${terms}" in ${cleanedPath}/ (${filePattern})` : `"${terms}" in ${cleanedPath}/`
+	return filePattern && filePattern !== "*" ? `"${terms}" in ${pathDisplay} (${filePattern})` : `"${terms}" in ${pathDisplay}`
 }
 // Format activity text based on tool type
 const getActivityText = (tool: ClineSayTool): string | null => {
@@ -47,7 +49,7 @@ const getActivityText = (tool: ClineSayTool): string | null => {
 		case "listFilesRecursive":
 			return tool.path ? `Exploring ${cleanedPath}/...` : null
 		case "searchFiles":
-			return tool.regex && tool.path ? `Searching ${formatSearchRegex(tool.regex, tool.path, tool.filePattern)}...` : null
+			return tool.regex ? `Searching ${formatSearchRegex(tool.regex, tool.path || "", tool.filePattern)}...` : null
 		case "listCodeDefinitionNames":
 			return tool.path ? `Analyzing ${cleanedPath}/...` : null
 		default:
@@ -139,13 +141,18 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	handleToggle,
 	isExpanded,
 	message,
+	retryFailedRequest,
 }) => {
 	// Derive explicit state
 	const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
 	const hasCost = cost != null
 	const hasReasoning = !!reasoningContent
 	const hasCompletionResult = clineMessages.some(
-		(msg) => msg.ask === "completion_result" || msg.say === "completion_result" || msg.ask === "plan_mode_respond",
+		(msg) =>
+			msg.ask === "completion_result" ||
+			msg.say === "completion_result" ||
+			msg.say === "plan_completion_result" ||
+			msg.ask === "plan_mode_respond",
 	)
 
 	const apiReqState: ApiReqState = hasError ? "error" : hasCost ? "final" : hasReasoning ? "thinking" : "pre"
@@ -253,6 +260,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 					apiRequestFailedMessage={apiRequestFailedMessage}
 					errorType="error"
 					message={message}
+					retryFailedRequest={retryFailedRequest}
 				/>
 			)}
 		</div>

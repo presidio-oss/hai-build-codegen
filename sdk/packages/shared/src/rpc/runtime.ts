@@ -1,6 +1,14 @@
 import z from "zod";
 import type { HubToolExecutorName } from "../hub";
 import type {
+	ModelModality,
+	ModelOperation,
+	ModelOperationMode,
+} from "../llms/model-info";
+import type { ModelToolName } from "../llms/model-tools";
+import type { ReasoningLevel } from "../llms/reasoning-options";
+import type { ProviderAuthInfo } from "../provider-auth";
+import type {
 	RuntimeConfigExtensionKind,
 	SessionExecutionConfig,
 	SessionPromptConfig,
@@ -14,6 +22,8 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	enableSpawn?: boolean;
 	enableTeams?: boolean;
 	disableMcpSettingsTools?: boolean;
+	/** Additional Agent Plugins package roots resolved by the hub runtime. */
+	agentPluginPaths?: string[];
 	autoApproveTools?: boolean;
 	missionStepInterval?: number;
 	missionTimeIntervalMs?: number;
@@ -141,12 +151,35 @@ export interface EnterpriseStatusRequest {
 
 export type EnterpriseStatusResponse = EnterpriseSyncResponse;
 
+/** Which tier of the Cline recommended-models feed featured a model. */
+export type ProviderModelFeaturedTier = "recommended" | "free" | "subscribed";
+
+export interface ProviderModelFeatured {
+	tier: ProviderModelFeaturedTier;
+	/** Position within the tier, preserving the feed's intentional order. */
+	rank: number;
+	/** Feed marketing tags, e.g. "NEW" or "BEST". */
+	tags: string[];
+}
+
 export interface ProviderModel {
 	id: string;
 	name: string;
+	description?: string;
+	/**
+	 * Present when the Cline recommended-models feed features this model
+	 * (cline / cline-pass providers only), so pickers can lead with the
+	 * feed's tiers without fetching and joining the feed themselves.
+	 */
+	featured?: ProviderModelFeatured;
+	operation?: ModelOperation;
+	contextWindow?: number;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	operationModes?: ModelOperationMode[];
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
 
 export type ProviderConfigFieldType =
@@ -177,12 +210,21 @@ export interface ProviderConfigField {
 }
 
 export interface ProviderListItem {
+	/** Native tools offered by at least some models, resolved by the host. */
+	modelTools: ModelToolName[];
+	auth: ProviderAuthInfo;
 	id: string;
 	name: string;
 	models: number | null;
 	color: string;
 	letter: string;
 	enabled: boolean;
+	/**
+	 * True when the persisted settings hold real credentials or a usable
+	 * keyless endpoint (see @cline/core's isProviderSettingsUsable), unlike
+	 * `enabled` which is set by any persisted entry.
+	 */
+	configured?: boolean;
 	apiKey?: string;
 	oauthAccessTokenPresent?: boolean;
 	baseUrl?: string;
@@ -198,17 +240,21 @@ export interface ProviderListItem {
 	family?: string;
 }
 
+export interface VoiceInputSelection {
+	providerId: string;
+	modelId: string;
+}
+
 export interface ProviderCatalogResponse {
 	providers: ProviderListItem[];
 	settingsPath: string;
+	voiceInput?: VoiceInputSelection;
 }
 
 export interface ProviderModelsResponse {
 	providerId: string;
 	models: ProviderModel[];
 }
-
-import type { OAuthProviderId } from "../types/auth";
 
 export const ProviderCapabilitySchema = z.enum([
 	"reasoning",
@@ -294,7 +340,7 @@ export interface SaveProviderSettingsActionRequest {
 	// Reasoning/thinking configuration
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "none" | "low" | "medium" | "high" | "xhigh";
+		effort?: ReasoningLevel;
 		budgetTokens?: number;
 	};
 	// AWS/Bedrock configuration
@@ -424,6 +470,6 @@ export type ProviderActionRequest =
 	| ClineAccountActionRequest;
 
 export interface ProviderOAuthLoginResponse {
-	provider: OAuthProviderId;
+	provider: string;
 	accessToken: string;
 }

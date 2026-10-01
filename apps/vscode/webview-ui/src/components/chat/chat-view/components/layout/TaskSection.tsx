@@ -18,8 +18,6 @@ interface TaskSectionProps {
 		supportsImages: boolean
 	}
 	messageHandlers: MessageHandlers
-	lastProgressMessageText?: string
-	showFocusChainPlaceholder?: boolean
 }
 
 /**
@@ -32,19 +30,17 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 	lastApiReqTotalTokens,
 	selectedModelInfo,
 	messageHandlers,
-	lastProgressMessageText,
-	showFocusChainPlaceholder,
 }) => {
 	return (
 		<TaskHeader
 			cacheReads={apiMetrics.totalCacheReads}
 			cacheWrites={apiMetrics.totalCacheWrites}
+			compactDisabled={messageHandlers.errorRecoveryAvailable}
+			compactTask={messageHandlers.compactTask}
 			doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
 			lastApiReqTotalTokens={lastApiReqTotalTokens}
-			lastProgressMessageText={lastProgressMessageText}
 			onClose={messageHandlers.handleTaskCloseButtonClick}
 			onSendMessage={messageHandlers.handleSendMessage}
-			showFocusChainPlaceholder={showFocusChainPlaceholder}
 			task={task}
 			tokensIn={apiMetrics.totalTokensIn}
 			tokensOut={apiMetrics.totalTokensOut}

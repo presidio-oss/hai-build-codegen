@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -7,8 +14,10 @@ import {
 	createContributionRegistry,
 	type Message,
 } from "@cline/shared";
+import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import { createUserInstructionConfigService } from "../../extensions/config";
+import { PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME } from "../../extensions/tools/command-guard-extension";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
@@ -53,10 +62,17 @@ async function collectExtensionTools(
 }
 
 describe("DefaultRuntimeBuilder", () => {
+	const previousHome = process.env.HOME;
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+	const tempDirs: string[] = [];
 
 	afterEach(() => {
+		process.env.HOME = previousHome;
+		setHomeDir(previousHome ?? "~");
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("includes builtin tools when enabled", async () => {
@@ -67,6 +83,75 @@ describe("DefaultRuntimeBuilder", () => {
 		const names = runtime.tools.map((tool) => tool.name);
 		expect(names.length).toBeGreaterThan(0);
 		expect(names).not.toContain("spawn_agent");
+	});
+
+	it("enables provider web search by default without a local executor", async () => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-model-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+
+		expect(runtime.modelTools).toEqual([{ name: "web_search" }]);
+		expect(runtime.tools.some((tool) => tool.name === "web_search")).toBe(
+			false,
+		);
+	});
+
+	it("excludes provider web search in yolo mode", async () => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-model-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ mode: "yolo" }),
+		});
+
+		expect(runtime.modelTools).not.toContainEqual({ name: "web_search" });
+	});
+
+	it("honors an explicit web search opt-out", async () => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-model-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+		writeFileSync(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ tools: { web_search: { enabled: false } } }),
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+
+		expect(runtime.modelTools).not.toContainEqual({ name: "web_search" });
+	});
+
+	it("requests provider image generation for supported language models", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+			}),
+		});
+
+		expect(runtime.modelTools).toContainEqual({
+			name: "image_generation",
+			outputFormat: "png",
+		});
+		expect(runtime.tools.some((tool) => tool.name === "image_generation")).toBe(
+			false,
+		);
 	});
 
 	it("forwards runtime logger for downstream agent creation", async () => {
@@ -82,6 +167,100 @@ describe("DefaultRuntimeBuilder", () => {
 		});
 
 		expect(runtime.logger).toBe(logger);
+	});
+
+	it("loads configured agent files as named subagent tools", async () => {
+		const tempHome = mkdtempSync(join(tmpdir(), "cline-agent-home-"));
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-agent-workspace-"));
+		tempDirs.push(tempHome, workspaceRoot);
+		setHomeDir(tempHome);
+
+		const globalAgentsDir = join(tempHome, ".hai", "agents");
+		mkdirSync(globalAgentsDir, { recursive: true });
+		writeFileSync(
+			join(globalAgentsDir, "code-reviewer.yml"),
+			`---
+name: code-reviewer
+description: Reviews code for quality and best practices
+tools: Execute_Command, Read_File
+modelId: anthropic/claude-sonnet-4.6
+---
+You are a code reviewer.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				cwd: workspaceRoot,
+				workspaceRoot,
+				enableSpawnAgent: true,
+				enableAgentTeams: false,
+			}),
+			createSpawnTool: makeSpawnTool,
+		});
+
+		const configuredAgentTool = runtime.tools.find(
+			(tool) => tool.name === "subagent_code_reviewer",
+		);
+		expect(configuredAgentTool).toBeDefined();
+		expect(configuredAgentTool?.description).toContain(
+			'Use the "code-reviewer" subagent',
+		);
+		expect(runtime.tools.map((tool) => tool.name)).toContain("spawn_agent");
+	});
+
+	it("does not register root skills when only configured agents declare skills", async () => {
+		const tempHome = mkdtempSync(join(tmpdir(), "cline-agent-home-"));
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-agent-workspace-"));
+		const cwd = join(workspaceRoot, "packages", "app");
+		tempDirs.push(tempHome, workspaceRoot);
+		setHomeDir(tempHome);
+		mkdirSync(cwd, { recursive: true });
+
+		const agentsDir = join(workspaceRoot, ".cline", "agents");
+		const skillDir = join(workspaceRoot, ".cline", "skills", "review");
+		mkdirSync(agentsDir, { recursive: true });
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(agentsDir, "code-reviewer.yml"),
+			`---
+name: code-reviewer
+description: Reviews code
+tools: use_skill
+skills: review
+---
+You are a code reviewer.`,
+			"utf8",
+		);
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+---
+Use the review guidance.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				cwd,
+				workspaceRoot,
+				enableSpawnAgent: true,
+			}),
+			configExtensions: [],
+			createSpawnTool: makeSpawnTool,
+		});
+
+		expect(runtime.tools.map((tool) => tool.name)).toContain(
+			"subagent_code_reviewer",
+		);
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain("skills");
+		expect(
+			(await collectExtensionTools(runtime.extensions)).map(
+				(tool) => tool.name,
+			),
+		).not.toContain("skills");
+		await runtime.shutdown("test");
 	});
 
 	it("forwards telemetry for downstream runtime consumers", async () => {
@@ -104,6 +283,39 @@ describe("DefaultRuntimeBuilder", () => {
 		});
 
 		expect(runtime.tools.map((tool) => tool.name)).not.toContain("editor");
+	});
+
+	it("registers the plan-mode command-guard hook only in plan mode", async () => {
+		const planRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				mode: "plan",
+			}),
+		});
+		const actRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+
+		const planGuards = (planRuntime.extensions ?? []).filter(
+			(extension) => extension.name === PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME,
+		);
+		expect(planGuards).toHaveLength(1);
+		expect(planGuards[0]?.hooks?.beforeTool).toBeTypeOf("function");
+		expect(
+			(actRuntime.extensions ?? []).map((extension) => extension.name),
+		).not.toContain(PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME);
+	});
+
+	it("does not register the plan-mode command-guard when tools are disabled", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				mode: "plan",
+				enableTools: false,
+			}),
+		});
+
+		expect(
+			(runtime.extensions ?? []).map((extension) => extension.name),
+		).not.toContain(PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME);
 	});
 
 	it("uses yolo preset only when yolo mode is explicit", async () => {
@@ -372,6 +584,142 @@ process.stdin.on("data", (chunk) => {
 		}
 	});
 
+	it("combines hub-owned Agent Plugin skills and MCP servers with client instructions", async () => {
+		const tempRoot = realpathSync.native(
+			mkdtempSync(join(tmpdir(), "runtime-builder-agent-plugin-")),
+		);
+		tempDirs.push(tempRoot);
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = join(
+			tempRoot,
+			"missing-settings.json",
+		);
+		const pluginRoot = join(tempRoot, "portable");
+		const pluginSkillRoot = join(pluginRoot, "skills", "portable-review");
+		const pluginSkillPath = join(pluginSkillRoot, "SKILL.md");
+		const localSkillRoot = join(tempRoot, "local-skills", "local-review");
+		const serverPath = join(pluginRoot, "server.js");
+		mkdirSync(pluginSkillRoot, { recursive: true });
+		mkdirSync(localSkillRoot, { recursive: true });
+		writeFileSync(
+			pluginSkillPath,
+			"---\nname: portable-review\ndescription: Review with the portable plugin\n---\nUse portable guidance.",
+			"utf8",
+		);
+		writeFileSync(
+			join(localSkillRoot, "SKILL.md"),
+			"---\nname: local-review\ndescription: Review locally\n---\nUse local guidance.",
+			"utf8",
+		);
+		writeFileSync(
+			serverPath,
+			`let buffer = "";
+function write(payload) { process.stdout.write(JSON.stringify(payload) + "\\n"); }
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  let newline;
+  while ((newline = buffer.indexOf("\\n")) >= 0) {
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
+    if (message.method === "notifications/initialized") continue;
+    if (message.method === "initialize") write({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "portable", version: "1.0.0" } } });
+    if (message.method === "tools/list") write({ jsonrpc: "2.0", id: message.id, result: { tools: [{ name: "echo", description: "Portable echo", inputSchema: { type: "object" } }] } });
+    if (message.method === "tools/call") write({ jsonrpc: "2.0", id: message.id, result: { echoed: message.params?.arguments ?? null } });
+  }
+});`,
+			"utf8",
+		);
+		const resolvedPluginRoot = realpathSync.native(pluginRoot);
+		const resolvedPluginSkillRoot = realpathSync.native(pluginSkillRoot);
+		const resolvedPluginSkillPath = realpathSync.native(pluginSkillPath);
+
+		const clientInstructionService = createUserInstructionConfigService({
+			skills: { directories: [join(tempRoot, "local-skills")] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+		let runtime:
+			| Awaited<ReturnType<DefaultRuntimeBuilder["build"]>>
+			| undefined;
+		try {
+			runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({
+					cwd: tempRoot,
+					disableMcpSettingsTools: true,
+				}),
+				userInstructionService: clientInstructionService,
+				agentPluginSkills: [
+					{
+						pluginName: "portable",
+						pluginRoot: resolvedPluginRoot,
+						directoryPath: resolvedPluginSkillRoot,
+						filePath: resolvedPluginSkillPath,
+						metadata: {
+							name: "portable-review",
+							description: "Review with the portable plugin",
+						},
+					},
+				],
+				agentPluginMcpServers: [
+					{
+						pluginName: "portable",
+						pluginRoot: resolvedPluginRoot,
+						pluginDataPath: join(tempRoot, "plugin-data"),
+						serverName: "tools",
+						registration: {
+							name: "portable.tools",
+							transport: {
+								type: "stdio",
+								command: process.execPath,
+								args: [serverPath],
+								cwd: resolvedPluginRoot,
+							},
+							metadata: {
+								source: "agent-plugin",
+								pluginDataPath: join(tempRoot, "plugin-data"),
+							},
+						},
+					},
+				],
+			});
+
+			const mcpTool = runtime.tools.find(
+				(tool) => tool.description === "Portable echo",
+			);
+			expect(existsSync(join(tempRoot, "plugin-data"))).toBe(true);
+			expect(mcpTool).toBeDefined();
+			const extensionTools = await collectExtensionTools(runtime.extensions);
+			const skillsTool = extensionTools.find((tool) => tool.name === "skills");
+			expect(skillsTool).toBeDefined();
+			if (!skillsTool) {
+				throw new Error("Expected combined skills tool.");
+			}
+			expect(skillsTool.description).toContain("portable:portable-review");
+			const context = {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			};
+			const portableResult = await skillsTool.execute(
+				{ skill: "portable:portable-review" },
+				context,
+			);
+			expect(portableResult).toContain("Use portable guidance.");
+			expect(portableResult).toContain(
+				`<skill-root>${resolvedPluginSkillRoot}</skill-root>`,
+			);
+			await expect(
+				skillsTool.execute({ skill: "local-review" }, context),
+			).resolves.toContain("Use local guidance.");
+		} finally {
+			await runtime?.shutdown("test");
+			clientInstructionService.stop();
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+	});
+
 	it("skips MCP settings tools when disableMcpSettingsTools is true", async () => {
 		const tempRoot = mkdtempSync(
 			join(tmpdir(), "runtime-builder-mcp-disabled-"),
@@ -384,8 +732,7 @@ process.stdin.on("data", (chunk) => {
 			serverPath,
 			`let buffer = "";
 function write(payload) {
-  const body = JSON.stringify(payload);
-  process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\\r\\n\\r\\n" + body);
+  process.stdout.write(JSON.stringify(payload) + "\\n");
 }
 function handle(message) {
   if (message.method === "initialize") {
@@ -402,19 +749,12 @@ function handle(message) {
 }
 process.stdin.on("data", (chunk) => {
   buffer += chunk.toString("utf8");
-  while (true) {
-    const separator = buffer.indexOf("\\r\\n\\r\\n");
-    if (separator < 0) break;
-    const header = buffer.slice(0, separator);
-    const match = header.match(/Content-Length:\\s*(\\d+)/i);
-    if (!match) throw new Error("missing content length");
-    const length = Number(match[1]);
-    const start = separator + 4;
-    const end = start + length;
-    if (buffer.length < end) break;
-    const body = buffer.slice(start, end);
-    buffer = buffer.slice(end);
-    const message = JSON.parse(body);
+  let newline;
+  while ((newline = buffer.indexOf("\\n")) >= 0) {
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
     if (message.method === "notifications/initialized") continue;
     handle(message);
   }
@@ -463,7 +803,7 @@ process.stdin.on("data", (chunk) => {
 		writeFileSync(
 			serverPath,
 			`process.stdin.once("data", () => {
-  process.stdout.write("Content-Length: 2\\r\\n\\r\\n{]");
+  process.stdout.write("{]\\n");
 });`,
 			"utf8",
 		);
@@ -475,6 +815,10 @@ process.stdin.on("data", (chunk) => {
 						broken: {
 							command: process.execPath,
 							args: [serverPath],
+							// Keep the test fast: the Content-Length fallback
+							// attempt otherwise waits out the default connect
+							// budget against this silent server.
+							timeout: 1,
 						},
 					},
 				},
@@ -542,6 +886,162 @@ Use conventional commits.`,
 
 		expect(runtime.tools.map((tool) => tool.name)).not.toContain("skills");
 		expect(extensionTools.map((tool) => tool.name)).toContain("skills");
+		await runtime.shutdown("test");
+	});
+
+	it("includes skills bundled in discovered plugin packages", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "runtime-builder-plugin-skills-"));
+		process.env.HOME = cwd;
+		setHomeDir(cwd);
+		const pluginDir = join(cwd, ".cline", "plugins", "review-plugin");
+		const skillDir = join(pluginDir, "skills", "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(pluginDir, "package.json"),
+			JSON.stringify(
+				{
+					name: "review-plugin",
+					private: true,
+					cline: {
+						plugins: [{ paths: ["./index.ts"] }],
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+		writeFileSync(join(pluginDir, "index.ts"), "export default {}", "utf8");
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+description: Review code
+---
+Use the review plugin guidance.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+		});
+		const extensionTools = await collectExtensionTools(runtime.extensions);
+		const skillsTool = extensionTools.find((tool) => tool.name === "skills");
+		expect(skillsTool).toBeDefined();
+		if (!skillsTool) {
+			throw new Error("Expected skills tool.");
+		}
+
+		const result = await skillsTool.execute(
+			{ skill: "review" },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		expect(result).toContain("<command-name>review</command-name>");
+		expect(result).toContain("Use the review plugin guidance.");
+
+		await runtime.shutdown("test");
+	});
+
+	it("uses explicit plugin skill directories instead of rediscovering plugins", async () => {
+		const cwd = mkdtempSync(
+			join(tmpdir(), "runtime-builder-active-plugin-skills-"),
+		);
+		process.env.HOME = cwd;
+		setHomeDir(cwd);
+		const pluginDir = join(cwd, ".cline", "plugins", "review-plugin");
+		const skillRoot = join(pluginDir, "skills");
+		const skillDir = join(skillRoot, "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(pluginDir, "package.json"),
+			JSON.stringify({
+				name: "review-plugin",
+				private: true,
+				cline: {
+					plugins: [{ paths: ["./index.ts"] }],
+				},
+			}),
+			"utf8",
+		);
+		writeFileSync(join(pluginDir, "index.ts"), "export default {}", "utf8");
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+description: Review code
+---
+Use the review plugin guidance.`,
+			"utf8",
+		);
+
+		const inactiveRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			pluginSkillDirectories: [],
+		});
+		const inactiveExtensionTools = await collectExtensionTools(
+			inactiveRuntime.extensions,
+		);
+		expect(inactiveExtensionTools.map((tool) => tool.name)).not.toContain(
+			"skills",
+		);
+		await inactiveRuntime.shutdown("test");
+
+		const activeRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			pluginSkillDirectories: [skillRoot],
+		});
+		const activeExtensionTools = await collectExtensionTools(
+			activeRuntime.extensions,
+		);
+		const skillsTool = activeExtensionTools.find(
+			(tool) => tool.name === "skills",
+		);
+		expect(skillsTool).toBeDefined();
+		await activeRuntime.shutdown("test");
+	});
+
+	it("does not include bundled plugin skills when plugins are disabled", async () => {
+		const cwd = mkdtempSync(
+			join(tmpdir(), "runtime-builder-plugin-skills-disabled-"),
+		);
+		process.env.HOME = cwd;
+		setHomeDir(cwd);
+		const pluginDir = join(cwd, ".cline", "plugins", "review-plugin");
+		const skillDir = join(pluginDir, "skills", "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(pluginDir, "package.json"),
+			JSON.stringify({
+				name: "review-plugin",
+				private: true,
+				cline: {
+					plugins: [{ paths: ["./index.ts"] }],
+				},
+			}),
+			"utf8",
+		);
+		writeFileSync(join(pluginDir, "index.ts"), "export default {}", "utf8");
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+---
+Use the review plugin guidance.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			configExtensions: ["skills"],
+		});
+		const extensionTools = await collectExtensionTools(runtime.extensions);
+
+		expect(extensionTools.map((tool) => tool.name)).not.toContain("skills");
+
 		await runtime.shutdown("test");
 	});
 

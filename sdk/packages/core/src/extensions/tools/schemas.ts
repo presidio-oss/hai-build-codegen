@@ -14,11 +14,13 @@ export const INPUT_ARG_CHAR_LIMIT = 6000;
  */
 const AbsolutePath = z
 	.string()
-	.describe("The absolute file path of a text file to read content from");
+	.describe("The absolute path of a text file to read content from");
 
 export const ReadFileLineRangeSchema = z
 	.object({
-		start_line: z
+		// Models sometimes emit line numbers as strings; coerce so a `"3"` does not
+		// reject the whole tool call. The advertised JSON Schema is unaffected.
+		start_line: z.coerce
 			.number()
 			.int()
 			.positive()
@@ -27,14 +29,14 @@ export const ReadFileLineRangeSchema = z
 			.describe(
 				"Optional one-based starting line number to read from; use null or omit for the start of the file",
 			),
-		end_line: z
+		end_line: z.coerce
 			.number()
 			.int()
 			.positive()
 			.nullable()
 			.optional()
 			.describe(
-				"Optional one-based ending line number to read through; use null or omit for the end of the file",
+				"Optional one-based ending line number to read through; use null or omit to read to the end of the file or the read cap, whichever comes first",
 			),
 	})
 	.describe("Optional inclusive one-based file line range");
@@ -46,7 +48,7 @@ export const ReadFileRequestSchema = z
 		end_line: ReadFileLineRangeSchema.shape.end_line,
 	})
 	.describe(
-		"A file read request with optional inclusive one-based line bounds",
+		"A file read request with optional inclusive one-based line bounds. Always include path; start_line/end_line must be on the same object as the path they apply to, never in a separate array element",
 	);
 
 /**
@@ -56,24 +58,50 @@ export const ReadFilesInputSchema = z.object({
 	files: z
 		.array(ReadFileRequestSchema)
 		.describe(
-			"Array of file read requests. Omit start_line/end_line or set them to null to return the full file content boundaries; provide integers to return only that inclusive one-based line range. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+			"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		),
 });
+
+const ReadFileRangeAliasFields = {
+	start_line: ReadFileLineRangeSchema.shape.start_line,
+	end_line: ReadFileLineRangeSchema.shape.end_line,
+};
+
+/**
+ * Tolerant per-entry schema for read requests. Some models emit the path
+ * under `file_path`/`filePath` instead of `path`; normalize those aliases to
+ * the canonical shape so downstream code only ever sees `path`.
+ */
+const LooseReadFileRequestSchema = z.union([
+	ReadFileRequestSchema,
+	z
+		.object({ file_path: AbsolutePath, ...ReadFileRangeAliasFields })
+		.transform(({ file_path, ...rest }) => ({ path: file_path, ...rest })),
+	z
+		.object({ filePath: AbsolutePath, ...ReadFileRangeAliasFields })
+		.transform(({ filePath, ...rest }) => ({ path: filePath, ...rest })),
+]);
 
 /**
  * Union schema for read_files tool input, allowing either a single string, an array of strings, or the full object schema
  */
 export const ReadFilesInputUnionSchema = z.union([
 	ReadFilesInputSchema,
-	ReadFileRequestSchema,
-	z.array(ReadFileRequestSchema),
+	LooseReadFileRequestSchema,
+	z.array(LooseReadFileRequestSchema),
 	z.array(z.string()),
 	z.string(),
-	z.object({ files: ReadFileRequestSchema }),
+	z.object({
+		files: z.array(z.union([AbsolutePath, LooseReadFileRequestSchema])),
+	}),
+	z.object({ files: LooseReadFileRequestSchema }),
+	z.object({ files: AbsolutePath }),
 	z.object({ file_paths: z.array(AbsolutePath) }),
 	z.object({ file_paths: z.string() }),
-	z.object({ paths: z.array(z.union([AbsolutePath, ReadFileRequestSchema])) }),
-	z.object({ paths: ReadFileRequestSchema }),
+	z.object({
+		paths: z.array(z.union([AbsolutePath, LooseReadFileRequestSchema])),
+	}),
+	z.object({ paths: LooseReadFileRequestSchema }),
 	z.object({ paths: z.string() }),
 ]);
 
@@ -102,27 +130,6 @@ const CommandInputSchema = z
 		`The non-interactive shell command to execute - MUST keep input short and concise (within ${INPUT_ARG_CHAR_LIMIT * 2} characters) to avoid timeouts.`,
 	);
 
-/**
- * Schema for run_commands tool input
- */
-export const RunCommandsInputSchema = z.object({
-	commands: z
-		.array(CommandInputSchema)
-		.describe("Array of shell commands to execute"),
-});
-
-/**
- * Union schema for run_commands tool input. More flexible.
- */
-export const RunCommandsInputUnionSchema = z.union([
-	RunCommandsInputSchema,
-	z.object({ commands: CommandInputSchema }),
-	z.object({ command: CommandInputSchema }),
-	z.object({ cmd: CommandInputSchema }),
-	z.array(z.string()),
-	z.string(),
-]);
-
 export const StructuredCommandInputSchema = z.object({
 	command: z
 		.string()
@@ -138,21 +145,21 @@ export const StructuredCommandEntrySchema = z.union([
 	CommandInputSchema,
 	StructuredCommandInputSchema,
 ]);
-/**
- * Schema for run_commands tool input
- */
-export const StructuredCommandsInputSchema = z.object({
+
+export const RunCommandsInputSchema = z.object({
 	commands: z
-		.array(StructuredCommandEntrySchema)
-		.describe(
-			"Array of commands to execute. Prefer structured { command, args } entries for portability; plain strings are still supported and are interpreted by the active shell.",
-		),
+		.array(CommandInputSchema)
+		.describe("Array of complete shell command strings to execute."),
+});
+
+const StructuredCommandsInputSchema = z.object({
+	commands: z.array(StructuredCommandEntrySchema),
 });
 
 /**
  * Union schema for run_commands tool input. More flexible.
  */
-export const StructuredCommandsInputUnionSchema = z.union([
+export const RunCommandsInputUnionSchema = z.union([
 	RunCommandsInputSchema,
 	StructuredCommandsInputSchema,
 	z.object({ commands: StructuredCommandEntrySchema }),
@@ -189,7 +196,7 @@ export const EditFileInputSchema = z
 		path: z
 			.string()
 			.min(1)
-			.describe("The absolute file path for the action to be performed on"),
+			.describe("The absolute path for the action to be performed on"),
 		old_text: z
 			.string()
 			.nullable()
@@ -202,7 +209,8 @@ export const EditFileInputSchema = z
 			.describe(
 				`The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; for large edits, use multiple calls with small chunks of old_text and new_text to iteratively edit the file.`,
 			),
-		insert_line: z
+		// See start_line above: coerced so a stringified line number still applies.
+		insert_line: z.coerce
 			.number()
 			.int()
 			.nullable()
@@ -271,12 +279,12 @@ export const SubmitInputSchema = z.object({
 		.string()
 		.min(10)
 		.describe(
-			"Summarization of the investigation, steps taken, and resolution status to submit at the end of the session. Before submitting, read the problem again along with any provided test's assertions carefully and confirm your fix produces the expected output.",
+			"Summarization of the investigation, steps taken, and resolution status to submit at the end of the session. Before submitting, re-read the task requirements together with any provided tests or assertions, and confirm from your own tool output — not from assumption — that your solution produces the expected results at the expected file locations.",
 		),
 	verified: z
 		.boolean()
 		.describe(
-			`Have you verified that the issue is resolved to the best of your knowledge, including updating and creating all the requested files and items? 'True' if you have completed the investigation and taken all necessary steps to resolve the issue.\n'False' if you have done all you can but cannot resolve the issue or if you are stuck and cannot proceed further. =\nIMPORTANT: You must run the specific failing test(s) mentioned in the issue or test patch and include the test output in your reasoning. If the test still fails after your fix, you must revise. Do NOT submit with 'true' unless the test output shows the test passing.`,
+			`Have you verified that the issue is resolved to the best of your knowledge, including updating and creating all the requested files and items? 'True' if you have completed the investigation and gathered concrete evidence that every requirement is met.\n'False' if you have done all you can but cannot resolve the issue or if you are stuck and cannot proceed further.\nIMPORTANT: verify by EXECUTION, not by assumption. Before setting 'true' you must have observed evidence in this session that your solution works:\n- If the task provides or references specific tests, run those exact test(s) and include the passing output in your reasoning. If they still fail, revise and re-run.\n- If no tests are provided, construct your own check: actually run the program, script, or command you produced; confirm every required output file exists at the exact path requested; and confirm its contents match the required format, data types, and values. Read the output back as evidence.\nPhrases like "assume it works", "should be correct", or "probably fine" are NOT verification. Do NOT set 'true' unless your tool output shows the requirements are met; if you cannot obtain such evidence, set 'false'.`,
 		),
 });
 

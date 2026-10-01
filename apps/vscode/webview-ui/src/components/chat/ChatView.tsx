@@ -1,24 +1,18 @@
-import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { combineErrorRetryMessages } from "@shared/combineErrorRetryMessages"
 import { combineHookSequences } from "@shared/combineHookSequences"
-import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
-import { getApiMetrics } from "@shared/getApiMetrics"
+import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { IHaiClineTask } from "@shared/hai-task"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import type { UpdateTaskStatusRequest } from "@shared/proto/cline/ui"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
+import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import Logo from "../../assets/hai-dark.svg?react"
-import TelemetryBanner from "../common/TelemetryBanner"
 import { Navbar } from "../menu/Navbar"
-import QuickActions from "../welcome/QuickActions"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 // Import utilities and hooks from the new structure
 import {
@@ -31,11 +25,18 @@ import {
 	groupMessages,
 	InputSection,
 	MessagesArea,
+	QueuedPrompts,
 	TaskSection,
 	useChatState,
 	useMessageHandlers,
 	useScrollBehavior,
+	WelcomeSection,
 } from "./chat-view"
+import {
+	hasPendingMessageConfirmation,
+	isPendingResponseUnconfirmed,
+	withPendingUserMessage,
+} from "./chat-view/utils/pendingResponse"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -52,10 +53,12 @@ interface ChatViewProps {
 
 // Use constants from the imported module
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
-// const QUICK_WINS_HISTORY_THRESHOLD = 3
+const QUICK_WINS_HISTORY_THRESHOLD = 3
 
 const ChatView = ({
 	isHidden,
+	showAnnouncement,
+	hideAnnouncement,
 	showHistoryView,
 	showHaiTaskListView,
 	onTaskSelect,
@@ -66,48 +69,17 @@ const ChatView = ({
 	const {
 		version,
 		clineMessages: messages,
-		// taskHistory,
-		apiConfiguration,
+		taskHistory,
 		telemetrySetting,
 		mode,
 		userInfo,
-		currentFocusChainChecklist,
-		focusChainSettings,
 		hooksEnabled,
+		checkpointRestoreInput,
+		queuedPrompts,
+		turnState,
 	} = useExtensionState()
-	// const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
-	// const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
-
-	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
-	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see HAI.abort)
-	const modifiedMessages = useMemo(() => {
-		const slicedMessages = messages.slice(1)
-		// Only combine hook sequences if hooks are enabled
-		const withHooks = hooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
-		return combineErrorRetryMessages(combineApiRequests(combineCommandSequences(withHooks)))
-	}, [messages, hooksEnabled])
-	// has to be after api_req_finished are all reduced into api_req_started messages
-	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
-
-	const lastApiReqTotalTokens = useMemo(() => {
-		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {
-			if (!msg.text) {
-				return 0
-			}
-			const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(msg.text)
-			return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-		}
-		const lastApiReqMessage = findLast(modifiedMessages, (msg) => {
-			if (msg.say !== "api_req_started") {
-				return false
-			}
-			return getTotalTokensFromApiReqMessage(msg) > 0
-		})
-		if (!lastApiReqMessage) {
-			return undefined
-		}
-		return getTotalTokensFromApiReqMessage(lastApiReqMessage)
-	}, [modifiedMessages])
+	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
+	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
 
 	// Use custom hooks for state management
 	const chatState = useChatState(messages)
@@ -121,8 +93,41 @@ const ChatView = ({
 		enableButtons,
 		expandedRows,
 		setExpandedRows,
+		pendingUserMessage,
+		setPendingUserMessage,
+		pendingResponse,
+		setPendingResponse,
 		textAreaRef,
 	} = chatState
+
+	const displayMessages = useMemo(() => withPendingUserMessage(messages, pendingUserMessage), [messages, pendingUserMessage])
+
+	useEffect(() => {
+		if (pendingUserMessage && hasPendingMessageConfirmation(messages, pendingUserMessage)) {
+			setPendingUserMessage((current) => (current === pendingUserMessage ? undefined : current))
+		}
+	}, [messages, pendingUserMessage, setPendingUserMessage])
+
+	useEffect(() => {
+		if (!pendingResponse || isPendingResponseUnconfirmed(pendingResponse, turnState, messages.length)) {
+			return
+		}
+		setPendingResponse((current) => (current?.id === pendingResponse.id ? undefined : current))
+	}, [messages.length, pendingResponse, setPendingResponse, turnState])
+
+	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
+	const task = useMemo(() => displayMessages.at(0), [displayMessages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+	const modifiedMessages = useMemo(() => {
+		const slicedMessages = displayMessages.slice(1)
+		// Only combine hook sequences if hooks are enabled
+		const withHooks = hooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
+		return combineApiRequests(combineCommandSequences(withHooks))
+	}, [displayMessages, hooksEnabled])
+	// has to be after api_req_finished are all reduced into api_req_started messages
+	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
+
+	const lastApiReqTotalTokens = useMemo(() => getLastApiReqTotalTokens(modifiedMessages) || undefined, [modifiedMessages])
+	const lastAppliedCheckpointRestoreSessionId = useRef<string | undefined>(checkpointRestoreInput?.sessionId)
 
 	// TAG:HAI - Track last successfully executed task ID
 	const [lastSuccessfullyExecutedTaskId, setLastSuccessfullyExecutedTaskId] = useState<string | undefined>(undefined)
@@ -136,12 +141,12 @@ const ChatView = ({
 	useEffect(() => {
 		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 		selectedHaiTask && setInputValue(`Task: ${selectedHaiTask.list} ${selectedHaiTask.acceptance} ${selectedHaiTask.context}`)
-	}, [selectedHaiTask])
+	}, [selectedHaiTask, setInputValue])
 
 	// TAG:HAI - Track when a task completes successfully
 	useEffect(() => {
-		if (selectedHaiTask && task && messages.length > 0) {
-			const lastMessage = messages[messages.length - 1]
+		if (selectedHaiTask && task && displayMessages.length > 0) {
+			const lastMessage = displayMessages[displayMessages.length - 1]
 			// Check if the last message is a completion_result (task completed)
 			if ((lastMessage.ask === "completion_result" || lastMessage.say === "completion_result") && !lastMessage.partial) {
 				// Verify that the current task is actually the HAI task by checking if task text contains HAI task content
@@ -157,7 +162,20 @@ const ChatView = ({
 				}
 			}
 		}
-	}, [messages, selectedHaiTask, task])
+	}, [displayMessages, selectedHaiTask, task])
+
+	useEffect(() => {
+		if (!checkpointRestoreInput || checkpointRestoreInput.sessionId === lastAppliedCheckpointRestoreSessionId.current) {
+			return
+		}
+		lastAppliedCheckpointRestoreSessionId.current = checkpointRestoreInput.sessionId
+		setInputValue(checkpointRestoreInput.text)
+		setSelectedImages(checkpointRestoreInput.images ?? [])
+		setSelectedFiles(checkpointRestoreInput.files ?? [])
+		setTimeout(() => {
+			textAreaRef.current?.focus()
+		}, 0)
+	}, [checkpointRestoreInput, setInputValue, setSelectedImages, setSelectedFiles, textAreaRef])
 
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
@@ -252,9 +270,7 @@ const ChatView = ({
 	// Use message handlers hook
 	const messageHandlers = useMessageHandlers(messages, chatState)
 
-	const { selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, mode)
-	}, [apiConfiguration, mode])
+	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
 
 	const selectFilesAndImages = useCallback(async () => {
 		try {
@@ -298,13 +314,13 @@ const ChatView = ({
 		const cleanup = UiServiceClient.subscribeToShowWebview(
 			{},
 			{
-				onResponse: (event) => {
+				onResponse: (event: any) => {
 					// Only focus if not hidden and preserveEditorFocus is false
 					if (!isHidden && !event.preserveEditorFocus) {
 						textAreaRef.current?.focus()
 					}
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in showWebview subscription:", error)
 				},
 				onComplete: () => {
@@ -321,7 +337,7 @@ const ChatView = ({
 		const cleanup = UiServiceClient.subscribeToAddToInput(
 			{},
 			{
-				onResponse: (event) => {
+				onResponse: (event: any) => {
 					if (event.value) {
 						setInputValue((prevValue) => {
 							const newText = event.value
@@ -338,7 +354,7 @@ const ChatView = ({
 						}, 0)
 					}
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in addToInput subscription:", error)
 				},
 				onComplete: () => {
@@ -370,32 +386,42 @@ const ChatView = ({
 		return filterVisibleMessages(modifiedMessages)
 	}, [modifiedMessages])
 
-	const lastProgressMessageText = useMemo(() => {
-		if (!focusChainSettings.enabled) {
-			return undefined
-		}
-
-		// First check if we have a current focus chain list from the extension state
-		if (currentFocusChainChecklist) {
-			return currentFocusChainChecklist
-		}
-
-		// Fall back to the last task_progress message if no state focus chain list
-		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
-		return lastProgressMessage?.text
-	}, [focusChainSettings.enabled, modifiedMessages, currentFocusChainChecklist])
-
-	const showFocusChainPlaceholder = useMemo(() => {
-		// Show placeholder whenever focus chain is enabled and no checklist exists yet.
-		return focusChainSettings.enabled && !lastProgressMessageText
-	}, [focusChainSettings.enabled, lastProgressMessageText])
-
 	const groupedMessages = useMemo(() => {
 		return groupLowStakesTools(groupMessages(visibleMessages))
 	}, [visibleMessages])
 
 	// Use scroll behavior hook
-	const scrollBehavior = useScrollBehavior(messages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
+	const scrollBehavior = useScrollBehavior(displayMessages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
+	const { scrollToBottomSmooth, scrollToBottomAuto, disableAutoScrollRef } = scrollBehavior
+
+	// When a prompt gets queued, the queue banner mounts (or grows) in the footer, which
+	// shrinks the messages area and visually covers the bottom of the conversation. No new
+	// chat row is added, so the list-length-based auto-scroll never fires — re-pin to the
+	// bottom here so the latest content stays visible.
+	const queuedPromptCount = queuedPrompts?.length ?? 0
+	const taskTs = task?.ts
+	const prevQueuedPromptCountRef = useRef(queuedPromptCount)
+	const prevQueuedPromptTaskTsRef = useRef(taskTs)
+	useEffect(() => {
+		const previousCount = prevQueuedPromptCountRef.current
+		const previousTaskTs = prevQueuedPromptTaskTsRef.current
+		prevQueuedPromptCountRef.current = queuedPromptCount
+		prevQueuedPromptTaskTsRef.current = taskTs
+		// A task switch can grow the count without a send from this webview (the newly
+		// displayed task may already have queued prompts) — don't hijack its scroll position.
+		if (taskTs !== previousTaskTs || queuedPromptCount <= previousCount) {
+			return
+		}
+		// Queueing is a deliberate send, so re-engage bottom pinning like handleSendMessage does.
+		disableAutoScrollRef.current = false
+		scrollToBottomSmooth()
+		// Settle with an instant scroll once the footer's layout change has landed.
+		setTimeout(() => {
+			if (!disableAutoScrollRef.current) {
+				scrollToBottomAuto()
+			}
+		}, 50)
+	}, [queuedPromptCount, taskTs, scrollToBottomSmooth, scrollToBottomAuto, disableAutoScrollRef])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."
@@ -405,59 +431,30 @@ const ChatView = ({
 	return (
 		<ChatLayout isHidden={isHidden}>
 			<div className="flex flex-col flex-1 overflow-hidden">
-				{showNavbar && <Navbar />}
+				{showNavbar && <Navbar startNewTask={messageHandlers.startNewTask} />}
 				{task ? (
 					<TaskSection
 						apiMetrics={apiMetrics}
 						lastApiReqTotalTokens={lastApiReqTotalTokens}
-						lastProgressMessageText={lastProgressMessageText}
 						messageHandlers={messageHandlers}
 						selectedModelInfo={{
 							supportsPromptCache: selectedModelInfo.supportsPromptCache,
 							supportsImages: selectedModelInfo.supportsImages || false,
 						}}
-						showFocusChainPlaceholder={showFocusChainPlaceholder}
 						task={task}
 					/>
 				) : (
-					<div
-						style={{
-							flex: "1 1 0", // flex-grow: 1, flex-shrink: 1, flex-basis: 0
-							minHeight: 0,
-							overflowY: "auto",
-							display: "flex",
-							flexDirection: "column",
-							paddingBottom: "10px",
-						}}>
-						<div style={{ height: "auto", maxWidth: "200px", margin: "20px" }}>
-							<Logo className="hai-logo" style={{ height: "100%", width: "100%" }} />
-						</div>
-
-						{telemetrySetting === "unset" && <TelemetryBanner />}
-
-						{/* <CodeIndexWarning
-							style={{
-								margin: "0px 15px",
-								position: "relative",
-								flexShrink: 0,
-							}}
-							type="info"
-						/> */}
-						<div style={{ padding: "0 20px", flexShrink: 0 }}>
-							<h2>How can I help you today?</h2>
-							<p>
-								I can handle complex software development tasks step-by-step. With tools that let me create & edit
-								files, explore complex projects, use the browser, and execute terminal commands (after you grant
-								permission), I can assist you in ways that go beyond code completion or tech support. I can even
-								use MCP to create new tools and extend my own capabilities.
-							</p>
-						</div>
-						<QuickActions
-							onTaskSelect={onTaskSelect}
-							showHaiTaskListView={showHaiTaskListView}
-							showHistoryView={showHistoryView}
-						/>
-					</div>
+					<WelcomeSection
+						hideAnnouncement={hideAnnouncement}
+						onTaskSelect={onTaskSelect}
+						shouldShowQuickWins={shouldShowQuickWins}
+						showAnnouncement={showAnnouncement}
+						showHaiTaskListView={showHaiTaskListView}
+						showHistoryView={showHistoryView}
+						taskHistory={taskHistory}
+						telemetrySetting={telemetrySetting}
+						version={version}
+					/>
 				)}
 				{task && (
 					<MessagesArea
@@ -470,7 +467,7 @@ const ChatView = ({
 					/>
 				)}
 			</div>
-			<footer className="bg-(--vscode-sidebar-background)" style={{ gridRow: "2" }}>
+			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
 				{/* TAG:HAI - Mark task as completed UI */}
 				{selectedHaiTask?.id &&
@@ -532,14 +529,9 @@ const ChatView = ({
 					messageHandlers={messageHandlers}
 					messages={messages}
 					mode={mode}
-					scrollBehavior={{
-						scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
-						disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
-						showScrollToBottom: scrollBehavior.showScrollToBottom,
-						virtuosoRef: scrollBehavior.virtuosoRef,
-					}}
 					task={task}
 				/>
+				<QueuedPrompts items={queuedPrompts} />
 				<InputSection
 					chatState={chatState}
 					messageHandlers={messageHandlers}

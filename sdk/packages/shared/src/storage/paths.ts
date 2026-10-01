@@ -8,12 +8,38 @@ import {
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import type { PluginManifest } from "..";
+import {
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
+} from "./chat-workspace-paths";
 
-const DEPRECATED_CONFIG_DIR = ".clinerules";
+// Keep the structural pieces browser-safe while exposing them through the
+// canonical Node storage-path module alongside the data-dir resolver.
+export {
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
+	isChatWorkspacePath,
+} from "./chat-workspace-paths";
+
+const DEPRECATED_CONFIG_DIR = ".hairules";
 const CLINE_CONFIG_DIR = ".cline";
+/**
+ * The vendor-neutral `.agents` directory. Originally adopted only for the
+ * agentskills.io skills convention (hence the historical name), it is now also
+ * the root for Agent Plugins under `.agents/plugins`.
+ */
 const LEGACY_AGENT_SKILLS_CONFIG_DIR = ".agents";
+const AGENTS_CONFIG_DIR = LEGACY_AGENT_SKILLS_CONFIG_DIR;
 
 export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
 export const HOOKS_CONFIG_DIRECTORY_NAME = "hooks";
@@ -23,7 +49,37 @@ export const WORKFLOWS_CONFIG_DIRECTORY_NAME = "workflows";
 export const PLUGINS_DIRECTORY_NAME = "plugins";
 export const AGENTS_RULES_FILE_NAME = "AGENTS.md";
 
-export const CLINE_MCP_SETTINGS_FILE_NAME = "cline_mcp_settings.json";
+/**
+ * Manifest that marks a directory as an Agent Plugin (agent-plugins.org).
+ * Per the specification a plugin MUST carry this file at its root, which makes
+ * it the discriminator between the two package lanes:
+ *
+ * - Agent plugin  -> `<root>/plugin.json`, discovered under `.agents/plugins`
+ * - Cline plugin  -> a JS/TS module, discovered under `.cline/plugins`
+ *
+ * Cline plugin discovery treats it as a hard stop: a directory carrying this
+ * file is never scanned for Cline plugin modules, so a plugin authored for
+ * another client and dropped into a Cline plugin root cannot have its skill
+ * scripts or another vendor's extension directory imported as Cline code.
+ */
+export const AGENT_PLUGIN_MANIFEST_FILE_NAME = "plugin.json";
+
+/**
+ * Shared workspace for all sessions started without a `cwd`/`workspaceRoot`.
+ * Lives under the cline data dir (not `os.tmpdir()`) so OS temp reapers never
+ * delete user work, the path is private to the user on multi-user hosts, and
+ * the directory shares the session store's lifecycle and env overrides.
+ */
+export function resolveChatWorkspacePath(): string {
+	return join(
+		resolveClineDataDir(),
+		CLINE_WORKSPACES_DIRECTORY_NAME,
+		CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	);
+}
+
+export const CLINE_MCP_SETTINGS_FILE_NAME = "hai_mcp_settings.json";
+export const CLINE_CONNECTOR_SETTINGS_FILE_NAME = "settings.json";
 
 function resolveDefaultHomeDir(): string {
 	const envHome = process?.env?.HOME?.trim();
@@ -100,11 +156,11 @@ export function resolveClineDir(): string {
 	if (envDir) {
 		return envDir;
 	}
-	return join(HOME_DIR, ".cline");
+	return join(HOME_DIR, ".hai");
 }
 
 export function resolveDocumentsClineDirectoryPath(): string {
-	return join(HOME_DIR, "Documents", "Cline");
+	return join(HOME_DIR, "Documents", "HAI");
 }
 
 type DocumentsExtensionName =
@@ -144,12 +200,62 @@ export function resolveTeamDataDir(): string {
 	return join(resolveClineDataDir(), "teams");
 }
 
+export function resolveConnectorDataDir(): string {
+	const explicitDir = process.env.CLINE_CONNECTOR_DATA_DIR?.trim();
+	if (explicitDir) {
+		return explicitDir;
+	}
+	return join(resolveClineDataDir(), "connectors");
+}
+
+/**
+ * Where a connector instance's stdout/stderr is captured. Both the CLI (which
+ * spawns detached connectors directly) and the hub supervisor (which spawns and
+ * reaps them) need to agree on this path, so it lives here rather than in
+ * either one.
+ */
+export function resolveConnectorLogPath(
+	channel: string,
+	instanceKey: string,
+): string {
+	const safeChannel = channel.replace(/[^a-zA-Z0-9._-]+/g, "_");
+	const safeKey = instanceKey.replace(/[^a-zA-Z0-9._-]+/g, "_");
+	return join(
+		resolveClineDataDir(),
+		"logs",
+		"connectors",
+		safeChannel,
+		`${safeKey}.log`,
+	);
+}
+
+export function resolveConnectorSettingsPath(): string {
+	const explicitPath = process.env.CLINE_CONNECTOR_SETTINGS_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveConnectorDataDir(), CLINE_CONNECTOR_SETTINGS_FILE_NAME);
+}
+
 export function resolveDbDataDir(): string {
 	const explicitDir = process.env.CLINE_DB_DATA_DIR?.trim();
 	if (explicitDir) {
 		return explicitDir;
 	}
 	return join(resolveClineDataDir(), "db");
+}
+
+/**
+ * Path to the dedicated connector configuration database.
+ * Lives alongside `sessions.db` but is a separate file so connector
+ * credentials/config stay decoupled from session storage.
+ */
+export function resolveConnectorsDbPath(): string {
+	const explicitPath = process.env.CLINE_CONNECTORS_DB_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveDbDataDir(), "connectors.db");
 }
 
 /**
@@ -163,6 +269,62 @@ export function resolveCronDbPath(): string {
 		return explicitPath;
 	}
 	return join(resolveDbDataDir(), "cron.db");
+}
+
+/** Path to the dedicated agenda task queue database. */
+export function resolveTasksDbPath(): string {
+	const explicitPath = process.env.CLINE_TASKS_DB_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveDbDataDir(), "tasks.db");
+}
+
+export type TaskSpecsScope = "global" | "workspace";
+
+export interface ResolveTaskSpecsDirOptions {
+	/** Explicit directory, primarily for tests and embedded hosts. */
+	taskSpecsDir?: string;
+	scope: TaskSpecsScope;
+	/** Required for workspace-scoped task specs. */
+	workspaceRoot?: string;
+}
+
+/**
+ * Home workspace for agent-created schedules: `~/.cline/schedules/`.
+ * Agent-created schedules are user-level routines, so they anchor here (and
+ * their unattended sessions run here) instead of inheriting whichever chat
+ * workspace happened to create them.
+ */
+export function resolveAgentSchedulesDir(): string {
+	return join(resolveClineDir(), "schedules");
+}
+
+/** Global file-backed agenda tasks: `~/.cline/tasks/`. */
+export function resolveGlobalTaskSpecsDir(): string {
+	return join(resolveClineDir(), "tasks");
+}
+
+/** Workspace file-backed agenda tasks: `<workspace>/.cline/tasks/`. */
+export function resolveWorkspaceTaskSpecsDir(workspaceRoot: string): string {
+	const normalized = workspaceRoot.trim();
+	if (!normalized) {
+		throw new Error("workspaceRoot is required for workspace task scope");
+	}
+	return join(normalized, ".cline", "tasks");
+}
+
+export function resolveTaskSpecsDir(
+	options: ResolveTaskSpecsDirOptions,
+): string {
+	const explicit = options.taskSpecsDir?.trim();
+	if (explicit) {
+		return explicit;
+	}
+	if (options.scope === "workspace") {
+		return resolveWorkspaceTaskSpecsDir(options.workspaceRoot ?? "");
+	}
+	return resolveGlobalTaskSpecsDir();
 }
 
 export type CronSpecsScope = "global" | "workspace";
@@ -356,14 +518,68 @@ export function resolveGlobalAgentsRulesPath(): string {
 	return join(HOME_DIR, LEGACY_AGENT_SKILLS_CONFIG_DIR, AGENTS_RULES_FILE_NAME);
 }
 
+/**
+ * The workspace-local directories rule files may live in: the legacy
+ * `<workspace>/.hairules` layout and the current
+ * `<workspace>/.cline/rules` layout. Every Cline surface (CLI, VS Code
+ * extension, desktop app) must honor both — hosts that hardcode one of them
+ * silently drop the other's rules (cline/cline#14186).
+ */
+export function resolveWorkspaceRulesConfigPaths(
+	workspacePath: string,
+): string[] {
+	return [
+		join(workspacePath, DEPRECATED_CONFIG_DIR),
+		join(workspacePath, CLINE_CONFIG_DIR, RULES_CONFIG_DIRECTORY_NAME),
+	];
+}
+
+/**
+ * On Windows, the user's Documents folder is frequently redirected by
+ * OneDrive "Known Folder Move" to `%OneDrive%\Documents`. The VS Code
+ * extension resolves the real Documents folder through the OS (PowerShell
+ * `[Environment]::GetFolderPath(MyDocuments)`) and creates global rules
+ * there, so the plain `HOME/Documents` guess below never sees them on
+ * redirected machines (cline/cline#14144). Add the OneDrive candidates so
+ * discovery covers both locations; missing directories are skipped by the
+ * scanners.
+ */
+function resolveRedirectedDocumentsPaths(): string[] {
+	const paths: string[] = [];
+	for (const envKey of ["OneDrive", "OneDriveConsumer", "OneDriveCommercial"]) {
+		const value = process.env[envKey]?.trim();
+		if (value) {
+			paths.push(join(value, "Documents"));
+		}
+	}
+	return paths;
+}
+
+/**
+ * Global (user-level) directories rule files may live in, ordered from the
+ * SDK-native location to the Documents locations used by the VS Code Rules
+ * tab.
+ */
+export function resolveGlobalRulesConfigPaths(): string[] {
+	return dedupePaths([
+		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
+		// The VS Code Rules tab resolves Documents via `xdg-user-dir DOCUMENTS`,
+		// which prints bare $HOME when unconfigured (WSL/headless), putting
+		// global rules at ~/HAI/Rules instead of ~/Documents/HAI/Rules
+		// (cline/cline#13542).
+		join(HOME_DIR, "HAI", "Rules"),
+		resolveDocumentsExtensionPath("Rules"),
+		...resolveRedirectedDocumentsPaths().map((documentsPath) =>
+			join(documentsPath, "HAI", "Rules"),
+		),
+	]);
+}
+
 export function resolveRulesConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
 	const wsPaths = workspacePath
-		? [
-				join(workspacePath, DEPRECATED_CONFIG_DIR),
-				join(workspacePath, CLINE_CONFIG_DIR, RULES_CONFIG_DIRECTORY_NAME),
-			]
+		? resolveWorkspaceRulesConfigPaths(workspacePath)
 		: [];
 	const workspaceAgentsFile = workspacePath
 		? [join(workspacePath, AGENTS_RULES_FILE_NAME)]
@@ -372,8 +588,7 @@ export function resolveRulesConfigSearchPaths(
 		...workspaceAgentsFile,
 		...wsPaths,
 		resolveGlobalAgentsRulesPath(),
-		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
-		resolveDocumentsExtensionPath("Rules"),
+		...resolveGlobalRulesConfigPaths(),
 	]);
 }
 
@@ -382,7 +597,7 @@ export function resolveWorkflowsConfigSearchPaths(
 ): string[] {
 	return dedupePaths([
 		workspacePath
-			? join(workspacePath, ".clinerules", WORKFLOWS_CONFIG_DIRECTORY_NAME)
+			? join(workspacePath, DEPRECATED_CONFIG_DIR, WORKFLOWS_CONFIG_DIRECTORY_NAME)
 			: "",
 		resolveDocumentsExtensionPath("Workflows"),
 		join(resolveClineDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),
@@ -402,9 +617,48 @@ export function resolvePluginConfigSearchPaths(
 	]);
 }
 
+/**
+ * Root searched for Agent Plugins (agent-plugins.org). Kept separate from
+ * {@link resolvePluginConfigSearchPaths} so the two package lanes never share a
+ * directory: `.agents/plugins` is the vendor-neutral location, matching the
+ * `.agents/skills` convention already honored by skill discovery.
+ *
+ * Discovery roots are explicitly client-defined by the specification. Cline
+ * only auto-discovers user-installed packages from the Hub host's home so
+ * opening a repository cannot activate repository-controlled MCP servers.
+ */
+export function resolveAgentPluginSearchPaths(): string[] {
+	return [join(HOME_DIR, AGENTS_CONFIG_DIR, PLUGINS_DIRECTORY_NAME)];
+}
+
 const PLUGIN_MODULE_EXTENSIONS = new Set([".js", ".ts"]);
 const PLUGIN_PACKAGE_JSON_FILE_NAME = "package.json";
 const PLUGIN_DIRECTORY_INDEX_CANDIDATES = ["index.ts", "index.js"];
+/**
+ * Never descended during Cline plugin discovery. A dependency tree is never a
+ * set of plugin entries: importing its files individually bypasses each
+ * package's own entry point, and for a plugin with real dependencies it means
+ * thousands of imports at session startup.
+ */
+const PLUGIN_SCAN_EXCLUDED_DIRECTORY_NAMES = new Set(["node_modules"]);
+
+/**
+ * True when `directoryPath` carries an Agent Plugin manifest at its root.
+ *
+ * Only the manifest's presence is checked here. Validating its contents
+ * (`$schema`, `name`, the closed field set) belongs to the Agent Plugin loader;
+ * discovery only needs to know that this directory belongs to the other lane
+ * and must not be scanned for Cline plugin modules.
+ */
+export function isAgentPluginDirectory(directoryPath: string): boolean {
+	try {
+		return statSync(
+			join(directoryPath, AGENT_PLUGIN_MANIFEST_FILE_NAME),
+		).isFile();
+	} catch {
+		return false;
+	}
+}
 
 interface PluginPackageManifest {
 	plugins?: PluginManifest[];
@@ -452,6 +706,13 @@ export function resolvePluginModuleEntries(
 		return null;
 	}
 
+	// An Agent Plugin is not a Cline plugin. Claim nothing from it here so an
+	// explicitly configured path pointing at one resolves to zero modules
+	// instead of importing whatever JS/TS happens to live inside.
+	if (isAgentPluginDirectory(root)) {
+		return null;
+	}
+
 	const packageJsonPath = join(root, PLUGIN_PACKAGE_JSON_FILE_NAME);
 	if (existsSync(packageJsonPath)) {
 		const manifest = readPluginPackageManifest(packageJsonPath);
@@ -478,9 +739,66 @@ export function resolvePluginModuleEntries(
 	return null;
 }
 
+function readPackageName(packageJsonPath: string): string | undefined {
+	try {
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+			name?: unknown;
+		};
+		return typeof packageJson.name === "string" && packageJson.name.trim()
+			? packageJson.name.trim()
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(resolve(parentPath), resolve(childPath));
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
+/**
+ * Human-readable name for a plugin module entry. Package-backed plugins
+ * (e.g. `~/.cline/plugins/_installed/<id>/package/index.ts`) are named after
+ * the `name` in the nearest ancestor `package.json` within `searchRoot`, so
+ * every install doesn't surface as "index". Bare module files fall back to
+ * the file basename.
+ */
+export function getPluginDisplayName(
+	filePath: string,
+	searchRoot: string,
+): string {
+	let current = dirname(filePath);
+	const root = resolve(searchRoot);
+	while (isPathWithin(root, current)) {
+		const packageJsonPath = join(current, PLUGIN_PACKAGE_JSON_FILE_NAME);
+		if (existsSync(packageJsonPath)) {
+			const packageName = readPackageName(packageJsonPath);
+			if (packageName) {
+				return packageName;
+			}
+			break;
+		}
+		const parent = resolve(current, "..");
+		if (parent === current) {
+			break;
+		}
+		current = parent;
+	}
+	return basename(filePath, extname(filePath));
+}
+
 export function discoverPluginModulePaths(directoryPath: string): string[] {
 	const root = resolve(directoryPath);
 	if (!existsSync(root)) {
+		return [];
+	}
+	// The scan root itself can be a plugin root, e.g. when a configured plugin
+	// path points directly at an Agent Plugin.
+	if (isAgentPluginDirectory(root)) {
 		return [];
 	}
 	const discovered: string[] = [];
@@ -499,6 +817,20 @@ export function discoverPluginModulePaths(directoryPath: string): string[] {
 		for (const entry of entries) {
 			const candidate = join(current, entry.name);
 			if (entry.isDirectory()) {
+				// Agent Plugins own their whole subtree. Descending would import a
+				// plugin's skill scripts, another vendor's extension directory, and
+				// its vendored dependencies as though each were a Cline plugin —
+				// and the loader imports a module before validating it, so that
+				// execution cannot be taken back.
+				if (isAgentPluginDirectory(candidate)) {
+					continue;
+				}
+				if (
+					PLUGIN_SCAN_EXCLUDED_DIRECTORY_NAMES.has(entry.name) ||
+					entry.name.startsWith(".")
+				) {
+					continue;
+				}
 				const packageJsonPath = join(candidate, PLUGIN_PACKAGE_JSON_FILE_NAME);
 				if (existsSync(packageJsonPath)) {
 					const manifest = readPluginPackageManifest(packageJsonPath);

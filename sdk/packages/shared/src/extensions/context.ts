@@ -20,21 +20,29 @@ export type ClientName =
 	| (string & {});
 
 /**
- * Identity of the calling client (surface + version).
+ * Identity of the calling client and host surface.
  */
 export interface ClientContext {
-	/** e.g. "cline-vscode", "cline-cli", "cline-sdk" */
+	/** Client type emitted to Cline request headers, e.g. "VSCode Extension", "cline-cli", "cline-sdk" */
 	name: ClientName;
-	/** Semver string, e.g. "3.12.0" */
+	/** Cline client/extension semver string, e.g. "3.12.0" */
 	version?: string;
+	/** Host platform display name, e.g. "Visual Studio Code", "Cursor", "cli" */
+	platform?: string;
+	/** Host platform version, e.g. vscode.version or the CLI version */
+	platformVersion?: string;
+	/** Whether the host workspace currently has multiple roots. */
+	isMultiRoot?: boolean;
 }
 
 /**
  * Identity of the authenticated user.
  */
 export interface UserContext {
-	/** PostHog / analytics distinct ID */
+	/** PostHog / analytics distinct ID (an account or anonymous machine ID). */
 	distinctId?: string;
+	/** Authenticated Cline account ID, or null when explicitly signed out. */
+	accountId?: string | null;
 	email?: string;
 	organizationId?: string;
 }

@@ -149,6 +149,10 @@ async function mergeKnownModels(
 	publicModels: Record<string, ModelInfo> = {},
 	userKnownModels: Record<string, ModelInfo> = {},
 ): Promise<Record<string, ModelInfo>> {
+	if (providerId === "litellm") {
+		return Llms.sortModelsByReleaseDate(privateModels);
+	}
+
 	const generatedProviderModels = await loadGeneratedProviderModels();
 	const generatedKeys = Llms.resolveProviderModelCatalogKeys(providerId);
 	const generated = Object.assign(
@@ -160,12 +164,14 @@ async function mergeKnownModels(
 	// For providers with a registered public model source (Ollama, LM Studio),
 	// the live response is the authoritative list of what the user has
 	// actually installed. Skip the bundled catalog so the picker doesn't
-	// show models that aren't downloaded.
+	// show models that aren't downloaded — even when the live fetch fails or
+	// returns nothing. Falling back to the bundled (cloud) catalog here would
+	// auto-select a model the user never installed (e.g. Ollama silently
+	// defaulting to a cloud nemotron model when the local server is down).
 	const hasPublicModelSource = Boolean(
 		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.modelsSourceUrl,
 	);
-	const publicHasResults = Object.keys(publicModels).length > 0;
-	if (hasPublicModelSource && publicHasResults) {
+	if (hasPublicModelSource) {
 		return Llms.sortModelsByReleaseDate({
 			...publicModels,
 			...userKnownModels,
@@ -179,12 +185,46 @@ async function mergeKnownModels(
 			...userKnownModels,
 		});
 	}
-	return Llms.sortModelsByReleaseDate({
+	if (providerId === "cline-pass" && Object.keys(liveModels).length > 0) {
+		// Keep the catalog's intentional order (pass models first, free models
+		// after) instead of re-sorting by release date: the first live model is
+		// the fallback default when the bundled default id rotates out of the
+		// live list, and it must stay a subscription model, not a free one.
+		return {
+			...liveModels,
+			...userKnownModels,
+		};
+	}
+	const knownModelsWithoutUserOverrides = Llms.sortModelsByReleaseDate({
 		...generated,
 		...defaultKnownModels,
 		...liveModels,
 		...privateModels,
 		...publicModels,
+	});
+
+	if (providerId === "cline") {
+		// Cline recommendations can use Vercel-style ids while the broader
+		// catalog includes OpenRouter aliases for the same models. Image-output
+		// models are temporarily unavailable through Cline's inference backend,
+		// so filter them only at the Cline catalog boundary. buildClineModels
+		// applies the same restriction to the bundled catalog. User overrides are
+		// also subject to this filter — the backend rejects image output
+		// regardless of where the model was configured. Remove both filter call
+		// sites together when the backend gains image-output support.
+		return Llms.sortModelsByReleaseDate(
+			Llms.filterImageOutputModels({
+				...Llms.preferCanonicalModelIds(
+					knownModelsWithoutUserOverrides,
+					Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+				),
+				...userKnownModels,
+			}),
+		);
+	}
+
+	return Llms.sortModelsByReleaseDate({
+		...knownModelsWithoutUserOverrides,
 		...userKnownModels,
 	});
 }
@@ -512,11 +552,26 @@ interface LiteLlmModelInfoResponse {
 }
 
 function normalizeLiteLlmBaseUrl(baseUrl: string | undefined): string {
-	const normalized = normalizeBaseUrl(baseUrl);
+	const normalized = normalizeBaseUrl(baseUrl).replace(/\/+$/, "");
 	if (!normalized) {
 		return "http://localhost:4000";
 	}
 	return normalized.endsWith("/v1") ? normalized.slice(0, -3) : normalized;
+}
+
+function buildLiteLlmModelInfoUrls(baseUrl: string): string[] {
+	return [`${baseUrl}/v1/model/info`, `${baseUrl}/model/info`];
+}
+
+async function describeLiteLlmHttpFailure(response: Response): Promise<string> {
+	const body = (await response.text().catch(() => ""))
+		.replace(/\s+/g, " ")
+		.trim();
+	const bodyLimit = 500;
+	const bodyText = body
+		? `: ${body.slice(0, bodyLimit)}${body.length > bodyLimit ? "..." : ""}`
+		: "";
+	return `HTTP ${response.status}${bodyText}`;
 }
 
 async function fetchLiteLlmPrivateModels(
@@ -524,58 +579,72 @@ async function fetchLiteLlmPrivateModels(
 	token: string,
 ): Promise<Record<string, ModelInfo>> {
 	const baseUrl = normalizeLiteLlmBaseUrl(config.baseUrl);
-	const endpoint = `${baseUrl}/v1/model/info`;
+	const failures: string[] = [];
+	const authHeaders = [
+		["x-litellm-api-key", { "x-litellm-api-key": token }],
+		["Authorization", { Authorization: `Bearer ${token}` }],
+	] as const;
 
-	const fetchWithHeaders = async (
-		headers: Record<string, string>,
-	): Promise<Response> =>
-		fetchWithTimeout(endpoint, {
-			method: "GET",
-			headers: {
-				accept: "application/json",
-				...headers,
-			},
-		});
+	for (const endpoint of buildLiteLlmModelInfoUrls(baseUrl)) {
+		for (const [authLabel, authHeader] of authHeaders) {
+			try {
+				const response = await fetchWithTimeout(endpoint, {
+					method: "GET",
+					headers: {
+						accept: "application/json",
+						...authHeader,
+					},
+				});
 
-	let response = await fetchWithHeaders({ "x-litellm-api-key": token });
-	if (!response.ok) {
-		response = await fetchWithHeaders({ Authorization: `Bearer ${token}` });
-	}
-	if (!response.ok) {
-		throw new Error(`LiteLLM model refresh failed: HTTP ${response.status}`);
-	}
+				if (response.ok) {
+					const payload = (await response.json()) as {
+						data?: LiteLlmModelInfoResponse[];
+					};
+					const entries = payload?.data ?? [];
+					const models: Record<string, ModelInfo> = {};
+					for (const model of entries) {
+						const displayName = model.model_name?.trim();
+						const actualModelId = model.litellm_params?.model?.trim();
+						const modelId = actualModelId || displayName;
+						if (!modelId) {
+							continue;
+						}
+						const info = model.model_info;
+						const converted = buildModelFromPrivateSource(modelId, {
+							name: displayName ?? modelId,
+							maxTokens: info?.max_output_tokens ?? info?.max_tokens,
+							maxInputTokens: info?.max_input_tokens ?? info?.max_tokens,
+							supportsImages: info?.supports_vision,
+							supportsPromptCache: info?.supports_prompt_caching,
+							supportsReasoning: info?.supports_reasoning,
+						});
+						models[modelId] = converted;
+						if (displayName) {
+							models[displayName] = {
+								...converted,
+								id: displayName,
+								name: displayName,
+							};
+						}
+					}
+					return models;
+				}
 
-	const payload = (await response.json()) as {
-		data?: LiteLlmModelInfoResponse[];
-	};
-	const entries = payload?.data ?? [];
-	const models: Record<string, ModelInfo> = {};
-	for (const model of entries) {
-		const displayName = model.model_name?.trim();
-		const actualModelId = model.litellm_params?.model?.trim();
-		const modelId = actualModelId || displayName;
-		if (!modelId) {
-			continue;
+				failures.push(
+					`${new URL(endpoint).pathname} (${authLabel}): ${await describeLiteLlmHttpFailure(response)}`,
+				);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				failures.push(
+					`${new URL(endpoint).pathname} (${authLabel}): ${message}`,
+				);
+			}
 		}
-		const info = model.model_info;
-		const converted = buildModelFromPrivateSource(modelId, {
-			name: displayName ?? modelId,
-			maxTokens: info?.max_output_tokens ?? info?.max_tokens,
-			maxInputTokens: info?.max_input_tokens ?? info?.max_tokens,
-			supportsImages: info?.supports_vision,
-			supportsPromptCache: info?.supports_prompt_caching,
-			supportsReasoning: info?.supports_reasoning,
-		});
-		models[modelId] = converted;
-		if (displayName) {
-			models[displayName] = {
-				...converted,
-				id: displayName,
-				name: displayName,
-			};
-		}
 	}
-	return models;
+
+	throw new Error(
+		`LiteLLM model refresh failed. Attempts: ${failures.join("; ")}`,
+	);
 }
 
 type PrivateProviderModelFetcher = (
@@ -593,6 +662,17 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	poolside: fetchPoolsidePrivateModels,
 };
 
+/**
+ * Whether a provider's model catalog comes from the customer's configured
+ * endpoint rather than a shared public catalog.
+ *
+ * Keep this derived from the fetcher registry so host consumers cannot drift
+ * from the providers whose live metadata is endpoint-specific.
+ */
+export function isPrivateModelCatalogProvider(providerId: string): boolean {
+	return Object.hasOwn(PRIVATE_PROVIDER_MODEL_FETCHERS, providerId);
+}
+
 const PUBLIC_MODELS_CACHE = new Map<
 	string,
 	{ data: Record<string, ModelInfo>; expiresAt: number }
@@ -606,7 +686,7 @@ function resolvePublicCacheKey(
 	providerId: string,
 	config: ProviderConfig,
 ): string {
-	return `${providerId}:${normalizeBaseUrl(config.baseUrl)}`;
+	return `${resolvePrivateCacheKey(providerId, config)}:${fingerprint(JSON.stringify(config.headers ?? {}))}`;
 }
 
 async function getPublicProviderModels(
@@ -625,7 +705,7 @@ async function getPublicProviderModels(
 	}
 	const cacheTtlMs =
 		modelCatalog?.cacheTtlMs ?? DEFAULT_PRIVATE_MODELS_CACHE_TTL_MS;
-	const cacheKey = resolvePublicCacheKey(providerId, config);
+	const cacheKey = `${resolvePublicCacheKey(providerId, config)}:${sourceUrl}`;
 	const now = Date.now();
 
 	const cached = PUBLIC_MODELS_CACHE.get(cacheKey);
@@ -638,7 +718,11 @@ async function getPublicProviderModels(
 		return inFlight;
 	}
 
-	const request = fetchModelIdsFromSource(sourceUrl, providerId)
+	const request = fetchModelIdsFromSource(sourceUrl, providerId, {
+		baseUrl: config.baseUrl ?? collection?.provider.baseUrl,
+		apiKey: resolveAuthToken(config),
+		headers: config.headers,
+	})
 		.then((modelIds) => {
 			const data = Object.fromEntries(
 				modelIds.map((id) => [
@@ -736,44 +820,73 @@ async function getPrivateProviderModels(
 
 async function fetchLiveModelsCatalog(
 	url: string,
+	includeClineCloudModels: boolean,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchModelsDevProviderModels(url, globalThis.fetch);
+	// Bound both catalog sources, including response-body reads, while keeping
+	// any cancellation supplied by the source fetcher.
+	const fetchWithTimeout = Object.assign(
+		(...args: Parameters<typeof fetch>) => {
+			const [input, init] = args;
+			const timeout = AbortSignal.timeout(
+				DEFAULT_PRIVATE_MODELS_REQUEST_TIMEOUT_MS,
+			);
+			const signal = init?.signal
+				? AbortSignal.any([init.signal, timeout])
+				: timeout;
+			return globalThis.fetch(input, { ...init, signal });
+		},
+		globalThis.fetch,
+	);
+	return Llms.fetchLiveProviderModels(url, fetchWithTimeout, {
+		includeClineCloudModels,
+	});
 }
 
 export async function getLiveModelsCatalog(
-	options: Pick<ModelCatalogConfig, "url" | "cacheTtlMs"> = {},
+	options: Pick<
+		ModelCatalogConfig,
+		"url" | "cacheTtlMs" | "includeClineCloudModels"
+	> = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const url = options.url ?? DEFAULT_MODELS_CATALOG_URL;
 	const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_MODELS_CATALOG_CACHE_TTL_MS;
+	const includeClineCloudModels = options.includeClineCloudModels === true;
+	const cacheKey = `${url}\0cloud=${includeClineCloudModels}`;
 	const now = Date.now();
 
-	const cached = MODELS_CATALOG_CACHE.get(url);
+	const cached = MODELS_CATALOG_CACHE.get(cacheKey);
 	if (cached && cached.expiresAt > now) {
 		return cached.data;
 	}
 
-	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(url);
+	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(cacheKey);
 	if (inFlight) {
 		return inFlight;
 	}
 
-	const request = fetchLiveModelsCatalog(url)
+	const request = fetchLiveModelsCatalog(url, includeClineCloudModels)
 		.then((data) => {
-			MODELS_CATALOG_CACHE.set(url, { data, expiresAt: now + cacheTtlMs });
+			MODELS_CATALOG_CACHE.set(cacheKey, {
+				data,
+				expiresAt: now + cacheTtlMs,
+			});
 			return data;
 		})
 		.finally(() => {
-			MODELS_CATALOG_IN_FLIGHT.delete(url);
+			MODELS_CATALOG_IN_FLIGHT.delete(cacheKey);
 		});
 
-	MODELS_CATALOG_IN_FLIGHT.set(url, request);
+	MODELS_CATALOG_IN_FLIGHT.set(cacheKey, request);
 	return request;
 }
 
 export function clearLiveModelsCatalogCache(url?: string): void {
 	if (url) {
-		MODELS_CATALOG_CACHE.delete(url);
-		MODELS_CATALOG_IN_FLIGHT.delete(url);
+		for (const includeClineCloudModels of [false, true]) {
+			const cacheKey = `${url}\0cloud=${includeClineCloudModels}`;
+			MODELS_CATALOG_CACHE.delete(cacheKey);
+			MODELS_CATALOG_IN_FLIGHT.delete(cacheKey);
+		}
 		return;
 	}
 
@@ -841,12 +954,12 @@ export async function resolveProviderConfig(
 			config && shouldLoadPrivateModels(providerId, modelCatalog, config)
 				? await getPrivateProviderModels(providerId, modelCatalog, config)
 				: {};
-		// Public (keyless) live model sources run whenever `modelsSourceUrl` is
+		// Live model sources (optionally authenticated) run whenever `modelsSourceUrl` is
 		// registered for the provider — even if the caller didn't pass a
 		// `config`. Falls back to the spec's default base URL so a fresh install
-		// still hits the default local model endpoint. Failures are swallowed
-		// below, so an unreachable server just leaves the picker on the bundled
-		// catalog.
+		// still hits the default local model endpoint. Unless the caller opted
+		// into `failOnError`, failures are swallowed below so an unreachable
+		// server just leaves the picker on the bundled catalog.
 		const hasPublicModelSource = Boolean(
 			Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider
 				.modelsSourceUrl,
@@ -863,7 +976,10 @@ export async function resolveProviderConfig(
 					providerId,
 					modelCatalog,
 					publicConfig,
-				).catch(() => ({}))
+				).catch((error: unknown) => {
+					if (modelCatalog?.failOnError) throw error;
+					return {};
+				})
 			: {};
 		const knownModels = await mergeKnownModels(
 			providerId,
@@ -881,6 +997,12 @@ export async function resolveProviderConfig(
 	} catch (error) {
 		if (modelCatalog?.failOnError) {
 			throw error;
+		}
+		if (providerId === "litellm") {
+			return {
+				...defaults,
+				knownModels: {},
+			};
 		}
 		return defaults;
 	}

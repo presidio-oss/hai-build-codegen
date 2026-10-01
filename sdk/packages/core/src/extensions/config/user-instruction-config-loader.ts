@@ -1,5 +1,14 @@
-import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
+import { stripUtf8Bom } from "@cline/shared";
 import {
 	AGENTS_RULES_FILE_NAME,
 	RULES_CONFIG_DIRECTORY_NAME,
@@ -11,6 +20,11 @@ import {
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "@cline/shared/storage";
 import YAML from "yaml";
+import {
+	type AgentPluginPackageSkill,
+	parseAgentSkillMarkdown,
+} from "../agent-plugin";
+import { resolveAgentPluginSkillDirectories } from "../plugin/plugin-config-loader";
 import {
 	type UnifiedConfigDefinition,
 	type UnifiedConfigFileCandidate,
@@ -43,6 +57,13 @@ export interface SkillConfig {
 	disabled?: boolean;
 	instructions: string;
 	frontmatter: Record<string, unknown>;
+	source?: {
+		type: "agent-plugin";
+		pluginName: string;
+		pluginRoot: string;
+		skillRoot: string;
+		filePath: string;
+	};
 }
 
 export interface RuleConfig {
@@ -82,6 +103,11 @@ export interface CreateInstructionWatcherOptions {
 export interface CreateSkillsConfigDefinitionOptions {
 	directories?: ReadonlyArray<string>;
 	workspacePath?: string;
+	includePluginSkills?: boolean;
+	pluginSkillDirectories?: ReadonlyArray<string>;
+	agentPluginSkills?: ReadonlyArray<AgentPluginPackageSkill>;
+	pluginPaths?: ReadonlyArray<string>;
+	cwd?: string;
 }
 
 export interface CreateRulesConfigDefinitionOptions {
@@ -102,6 +128,10 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 	const nodeError = error as NodeJS.ErrnoException;
 	return (
 		nodeError?.code === "ENOENT" ||
+		// ENOTDIR: a path component is a file, e.g. `.hairules/workflows`
+		// when `.hairules` is a legacy single-file ruleset. Treat it like a
+		// missing directory instead of aborting the whole config scan.
+		nodeError?.code === "ENOTDIR" ||
 		nodeError?.code === "EACCES" ||
 		nodeError?.code === "EPERM" ||
 		nodeError?.code === "ELOOP"
@@ -110,6 +140,87 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 
 function isMarkdownFile(fileName: string): boolean {
 	return MARKDOWN_EXTENSIONS.has(extname(fileName).toLowerCase());
+}
+
+function dedupeDirectoryPaths(directories: ReadonlyArray<string>): string[] {
+	const deduped: string[] = [];
+	const seen = new Set<string>();
+	for (const directory of directories) {
+		const normalized = resolve(directory);
+		if (seen.has(normalized)) {
+			continue;
+		}
+		seen.add(normalized);
+		deduped.push(directory);
+	}
+	return deduped;
+}
+
+function resolveSkillDirectories(
+	options?: CreateSkillsConfigDefinitionOptions,
+): string[] {
+	const directories = [
+		...(options?.directories ??
+			resolveSkillsConfigSearchPaths(options?.workspacePath)),
+	];
+	if (options?.pluginSkillDirectories) {
+		directories.push(...options.pluginSkillDirectories);
+	} else if (options?.includePluginSkills) {
+		directories.push(
+			...resolveAgentPluginSkillDirectories({
+				pluginPaths: options.pluginPaths,
+				workspacePath: options.workspacePath,
+				cwd: options.cwd ?? options.workspacePath,
+			}),
+		);
+	}
+	if (options?.agentPluginSkills) {
+		directories.push(
+			...options.agentPluginSkills.map((skill) => skill.directoryPath),
+		);
+	}
+	return dedupeDirectoryPaths(directories);
+}
+
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(parentPath, childPath);
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
+async function discoverAgentPluginSkillFile(
+	skill: AgentPluginPackageSkill,
+): Promise<ReadonlyArray<UnifiedConfigFileCandidate>> {
+	try {
+		const [pluginRoot, skillRoot, filePath] = await Promise.all([
+			realpath(skill.pluginRoot),
+			realpath(skill.directoryPath),
+			realpath(skill.filePath),
+		]);
+		if (
+			pluginRoot !== resolve(skill.pluginRoot) ||
+			!isPathWithin(pluginRoot, skillRoot) ||
+			!isPathWithin(pluginRoot, filePath) ||
+			!(await stat(skillRoot)).isDirectory() ||
+			!(await stat(filePath)).isFile()
+		) {
+			return [];
+		}
+		return [
+			{
+				directoryPath: skill.directoryPath,
+				fileName: SKILL_FILE_NAME,
+				filePath,
+			},
+		];
+	} catch (error) {
+		if (isIgnorableDirectoryError(error)) {
+			return [];
+		}
+		throw error;
+	}
 }
 
 async function discoverManagedPluginRoots(
@@ -153,10 +264,15 @@ async function discoverManagedPluginRoots(
 function parseMarkdownFrontmatter(
 	content: string,
 ): ParseMarkdownFrontmatterResult {
+	// Strip a leading UTF-8 BOM (e.g. added by Windows Notepad's "UTF-8 with BOM" encoding),
+	// which Node's `utf-8` decoding does not strip on its own. Without this the frontmatter
+	// regex below never matches a file that starts with "\uFEFF---" (see cline/cline#12151).
+	const normalizedContent = stripUtf8Bom(content);
+
 	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-	const match = content.match(frontmatterRegex);
+	const match = normalizedContent.match(frontmatterRegex);
 	if (!match) {
-		return { data: {}, body: content, hadFrontmatter: false };
+		return { data: {}, body: normalizedContent, hadFrontmatter: false };
 	}
 
 	const [, yamlContent, body] = match;
@@ -171,7 +287,7 @@ function parseMarkdownFrontmatter(
 		const message = error instanceof Error ? error.message : String(error);
 		return {
 			data: {},
-			body: content,
+			body: normalizedContent,
 			hadFrontmatter: true,
 			parseError: message,
 		};
@@ -480,24 +596,63 @@ async function discoverManagedWorkflowFiles(
 export function createSkillsConfigDefinition(
 	options?: CreateSkillsConfigDefinitionOptions,
 ): UnifiedConfigDefinition<"skill", SkillConfig> {
-	const directories =
-		options?.directories ??
-		resolveSkillsConfigSearchPaths(options?.workspacePath);
+	const directories = resolveSkillDirectories(options);
+	const agentPluginSkillsByDirectory = new Map(
+		(options?.agentPluginSkills ?? []).map((skill) => [
+			resolve(skill.directoryPath),
+			skill,
+		]),
+	);
 	const managedRoot = options?.workspacePath
 		? join(options.workspacePath, ".cline")
 		: undefined;
 
 	return {
 		type: "skill",
-		directories: managedRoot ? [...directories, managedRoot] : directories,
-		discoverFiles: discoverSkillFiles,
+		directories: managedRoot
+			? dedupeDirectoryPaths([...directories, managedRoot])
+			: directories,
+		discoverFiles: (directoryPath) => {
+			const agentPluginSkill = agentPluginSkillsByDirectory.get(
+				resolve(directoryPath),
+			);
+			return agentPluginSkill
+				? discoverAgentPluginSkillFile(agentPluginSkill)
+				: discoverSkillFiles(directoryPath);
+		},
 		includeFile: (fileName) => fileName === SKILL_FILE_NAME,
-		parseFile: (context) =>
-			parseSkillConfigFromMarkdown(
+		parseFile: (context) => {
+			const agentPluginSkill = agentPluginSkillsByDirectory.get(
+				resolve(context.directoryPath),
+			);
+			if (!agentPluginSkill) {
+				return parseSkillConfigFromMarkdown(
+					context.content,
+					basename(context.directoryPath),
+				);
+			}
+			const parsed = parseAgentSkillMarkdown(
 				context.content,
-				basename(context.directoryPath),
-			),
-		resolveId: (skill) => normalizeName(skill.name),
+				agentPluginSkill.metadata.name,
+			);
+			return {
+				name: parsed.metadata.name,
+				description: parsed.metadata.description,
+				instructions: parsed.instructions,
+				frontmatter: parsed.frontmatter,
+				source: {
+					type: "agent-plugin",
+					pluginName: agentPluginSkill.pluginName,
+					pluginRoot: agentPluginSkill.pluginRoot,
+					skillRoot: agentPluginSkill.directoryPath,
+					filePath: agentPluginSkill.filePath,
+				},
+			};
+		},
+		resolveId: (skill) =>
+			skill.source?.type === "agent-plugin"
+				? `${normalizeName(skill.source.pluginName)}:${normalizeName(skill.name)}`
+				: normalizeName(skill.name),
 	};
 }
 
@@ -516,7 +671,7 @@ export function createRulesConfigDefinition(
 		directories: managedRoot ? [...directories, managedRoot] : directories,
 		discoverFiles: discoverRulesLikeFiles,
 		includeFile: (fileName, filePath) =>
-			fileName === ".clinerules" ||
+			fileName === ".hairules" ||
 			isMarkdownFile(fileName) ||
 			isMarkdownFile(filePath),
 		parseFile: (context) =>
