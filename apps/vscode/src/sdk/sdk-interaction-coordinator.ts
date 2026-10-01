@@ -78,7 +78,7 @@ export class SdkInteractionCoordinator {
 			ts: this.nextMessageTs(),
 			type: "say",
 			say: "error",
-			text: `Cline ran into ${context.consecutiveMistakes} errors in a row and stopped the task.\n\nLatest: ${latest}\n\nSend a message to give Cline guidance and continue the task.`,
+			text: `HAI ran into ${context.consecutiveMistakes} errors in a row and stopped the task.\n\nLatest: ${latest}\n\nSend a message to give HAI guidance and continue the task.`,
 			partial: false,
 		}
 
