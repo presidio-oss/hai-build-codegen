@@ -62,6 +62,7 @@ describe("user instruction config loader", () => {
 			expect.arrayContaining([
 				join(workspacePath, ".hairules", "skills"),
 				join(workspacePath, ".cline", "skills"),
+				join(workspacePath, ".claude", "skills"),
 				join(workspacePath, ".agents", "skills"),
 			]),
 		);
