@@ -238,6 +238,8 @@ export {
 export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,
+	createImageAwareReplacer,
+	ESTIMATED_TOKENS_PER_IMAGE,
 	estimateRequestInputTokens,
 	estimateTokens,
 	type TokenEstimatedRequest,
@@ -317,6 +319,7 @@ export {
 export {
 	type ProviderAuthInfo,
 	type ProviderLocalCli,
+	resolveProviderApiKeyOptional,
 	resolveProviderLocalCli,
 } from "./provider-auth";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
@@ -445,6 +448,7 @@ export {
 	CLINE_ENVIRONMENTS,
 	DEFAULT_CLINE_ENVIRONMENT,
 	getClineEnvironmentConfig,
+	resolveClineAppUrl,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
 export type {
@@ -483,6 +487,11 @@ export {
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
 } from "./services/telemetry-config";
+export type {
+	TelemetrySelfcheckConfig,
+	TelemetrySelfcheckReport,
+} from "./services/telemetry-selfcheck";
+export { buildTelemetrySelfcheckReport } from "./services/telemetry-selfcheck";
 export type {
 	HookSessionContext,
 	HookSessionContextLookup,
@@ -526,3 +535,5 @@ export { createTool } from "./tools/create";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 // VCR is Node-only (uses node:fs, node:path), excluded from browser build
 export type { VcrRecording } from "./types/vcr";
+
+export * from "./ux-verifier";

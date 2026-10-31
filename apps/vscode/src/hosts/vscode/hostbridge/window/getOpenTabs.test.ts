@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
 import { strict as assert } from "assert"
 import * as fs from "fs/promises"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import * as os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
@@ -9,26 +9,16 @@ import { getOpenTabs } from "@/hosts/vscode/hostbridge/window/getOpenTabs"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
 
 describe("Hostbridge - Window - getOpenTabs", () => {
-	async function createAndOpenTestDocument(name: string, column: vscode.ViewColumn): Promise<void> {
-		const content = `// Test file ${name}\nconsole.log('Hello from file ${name}');`
-
-		// Create an untitled document with a custom name
-		const uri = vscode.Uri.parse(`untitled:test-file-${name}.js`)
-
-		const doc = await vscode.workspace.openTextDocument(uri)
-
-		// Set the content
-		const edit = new vscode.WorkspaceEdit()
-		edit.insert(uri, new vscode.Position(0, 0), content)
-		await vscode.workspace.applyEdit(edit)
-
-		await vscode.window.showTextDocument(doc, {
-			viewColumn: column,
-			preview: false,
+	async function createAndOpenTestDocument(name: string, column: vscode.ViewColumn): Promise<vscode.TextDocument> {
+		// Populate an unnamed untitled document before showing it. Applying a
+		// WorkspaceEdit to a named untitled URI can open it in the active group
+		// before showTextDocument opens a second copy in the requested group.
+		const doc = await vscode.workspace.openTextDocument({
+			language: "javascript",
+			content: `// Test file ${name}\nconsole.log('Hello from file ${name}');`,
 		})
-
-		// Add a small delay to ensure document is fully registered
-		await new Promise((resolve) => setTimeout(resolve, 100))
+		await vscode.window.showTextDocument(doc, { viewColumn: column, preview: false })
+		return doc
 	}
 
 	async function waitForAllTabsClosed(): Promise<void> {
@@ -71,10 +61,10 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 
 	it("should return paths of open text document tabs", async () => {
 		// Open the documents in editors (this creates the tabs)
-		await createAndOpenTestDocument("open-tabs-1", vscode.ViewColumn.One)
-		await createAndOpenTestDocument("open-tabs-2", vscode.ViewColumn.Two)
+		const first = await createAndOpenTestDocument("open-tabs-1", vscode.ViewColumn.One)
+		const second = await createAndOpenTestDocument("open-tabs-2", vscode.ViewColumn.Two)
 
-		// Wait for tabs to be fully created (increased timeout for Windows CI)
+		// Wait for tabs to be fully created
 		await pWaitFor(
 			async () => {
 				const request = GetOpenTabsRequest.create({})
@@ -85,13 +75,15 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 				return response.paths.length === 2
 			},
 			{
-				timeout: 15000,
+				timeout: 8000,
 				interval: 50,
 			},
 		)
 
 		const request = GetOpenTabsRequest.create({})
 		const response = await getOpenTabs(request)
+
+		assert.deepStrictEqual([...response.paths].sort(), [first.uri.fsPath, second.uri.fsPath].sort())
 
 		// Should have 2 tabs open
 		assert.strictEqual(
@@ -101,13 +93,22 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		)
 	})
 
+	it("should return a tab for each group when the same document is open twice", async () => {
+		const doc = await createAndOpenTestDocument("two-groups", vscode.ViewColumn.One)
+		await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Two, preview: false })
+		const request = GetOpenTabsRequest.create({})
+		await pWaitFor(async () => (await getOpenTabs(request)).paths.length === 2, { timeout: 8000, interval: 50 })
+		const response = await getOpenTabs(request)
+		assert.deepStrictEqual(response.paths, [doc.uri.fsPath, doc.uri.fsPath])
+	})
+
 	it("should return all open tabs even when multiple files are opened in the same ViewColumn", async () => {
 		// Open all documents in the same column (only the last one will be visible, but all are open as tabs)
 		await createAndOpenTestDocument("same-column-1", vscode.ViewColumn.One)
 		await createAndOpenTestDocument("same-column-2", vscode.ViewColumn.One)
 		await createAndOpenTestDocument("same-column-3", vscode.ViewColumn.One)
 
-		// Wait for tabs to be fully created (increased timeout for Windows CI)
+		// Wait for tabs to be fully created
 		await pWaitFor(
 			async () => {
 				const request = GetOpenTabsRequest.create({})
@@ -118,7 +119,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 				return response.paths.length === 3
 			},
 			{
-				timeout: 15000,
+				timeout: 8000,
 				interval: 50,
 			},
 		)
@@ -147,7 +148,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		// Also open an untitled document
 		await createAndOpenTestDocument("includes-deleted", vscode.ViewColumn.One)
 
-		// Wait for tabs to be created (increased timeout for Windows CI)
+		// Wait for tabs to be created
 		await pWaitFor(
 			async () => {
 				const request = GetOpenTabsRequest.create({})
@@ -158,7 +159,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 				return response.paths.length === 2
 			},
 			{
-				timeout: 15000,
+				timeout: 8000,
 				interval: 50,
 			},
 		)

@@ -2,11 +2,8 @@ import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { combineHookSequences } from "@shared/combineHookSequences"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
-import { IHaiClineTask } from "@shared/hai-task"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
-import type { UpdateTaskStatusRequest } from "@shared/proto/cline/ui"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
@@ -43,28 +40,13 @@ interface ChatViewProps {
 	showAnnouncement: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void
-	showHaiTaskListView: () => void
-
-	// TAG:HAI
-	onTaskSelect: (task: IHaiClineTask | null) => void
-	selectedHaiTask: IHaiClineTask | null
-	haiConfigFolder: string
 }
 
 // Use constants from the imported module
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 const QUICK_WINS_HISTORY_THRESHOLD = 3
 
-const ChatView = ({
-	isHidden,
-	showAnnouncement,
-	hideAnnouncement,
-	showHistoryView,
-	showHaiTaskListView,
-	onTaskSelect,
-	selectedHaiTask,
-	haiConfigFolder,
-}: ChatViewProps) => {
+const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
 	const {
 		version,
@@ -77,6 +59,9 @@ const ChatView = ({
 		checkpointRestoreInput,
 		queuedPrompts,
 		turnState,
+		cloudSessionsEnabled,
+		cloudTaskTarget,
+		currentCloudTask,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
@@ -128,41 +113,6 @@ const ChatView = ({
 
 	const lastApiReqTotalTokens = useMemo(() => getLastApiReqTotalTokens(modifiedMessages) || undefined, [modifiedMessages])
 	const lastAppliedCheckpointRestoreSessionId = useRef<string | undefined>(checkpointRestoreInput?.sessionId)
-
-	// TAG:HAI - Track last successfully executed task ID
-	const [lastSuccessfullyExecutedTaskId, setLastSuccessfullyExecutedTaskId] = useState<string | undefined>(undefined)
-
-	// TAG:HAI - Reset lastSuccessfullyExecutedTaskId when task changes (new task started or task cleared)
-	useEffect(() => {
-		setLastSuccessfullyExecutedTaskId(undefined)
-	}, [task?.ts])
-
-	// TAG:HAI - Set input value when task is selected
-	useEffect(() => {
-		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
-		selectedHaiTask && setInputValue(`Task: ${selectedHaiTask.list} ${selectedHaiTask.acceptance} ${selectedHaiTask.context}`)
-	}, [selectedHaiTask, setInputValue])
-
-	// TAG:HAI - Track when a task completes successfully
-	useEffect(() => {
-		if (selectedHaiTask && task && displayMessages.length > 0) {
-			const lastMessage = displayMessages[displayMessages.length - 1]
-			// Check if the last message is a completion_result (task completed)
-			if ((lastMessage.ask === "completion_result" || lastMessage.say === "completion_result") && !lastMessage.partial) {
-				// Verify that the current task is actually the HAI task by checking if task text contains HAI task content
-				const taskText = task.text || ""
-				const isHaiTask =
-					taskText.includes(selectedHaiTask.list) ||
-					taskText.includes(selectedHaiTask.acceptance) ||
-					taskText.includes(selectedHaiTask.id)
-
-				// Only track completion if this is actually the HAI task that was selected
-				if (isHaiTask) {
-					setLastSuccessfullyExecutedTaskId(selectedHaiTask.id)
-				}
-			}
-		}
-	}, [displayMessages, selectedHaiTask, task])
 
 	useEffect(() => {
 		if (!checkpointRestoreInput || checkpointRestoreInput.sessionId === lastAppliedCheckpointRestoreSessionId.current) {
@@ -272,6 +222,13 @@ const ChatView = ({
 
 	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
 
+	// Cloud sandboxes cannot read local files; only images (sent inline) can be attached.
+	const imagesOnly =
+		!!currentCloudTask || (messages.length === 0 && cloudSessionsEnabled && cloudTaskTarget?.target === "cloud")
+	// Cloud sessions always auto-approve; local auto-approve settings don't apply there.
+	const hideAutoApprove =
+		!!currentCloudTask || (messages.length === 0 && cloudSessionsEnabled && cloudTaskTarget?.target === "cloud")
+
 	const selectFilesAndImages = useCallback(async () => {
 		try {
 			const response = await FileServiceClient.selectFiles(
@@ -279,6 +236,9 @@ const ChatView = ({
 					value: selectedModelInfo.supportsImages,
 				}),
 			)
+			if (response && imagesOnly) {
+				response.values2 = []
+			}
 			if (
 				response &&
 				response.values1 &&
@@ -305,7 +265,7 @@ const ChatView = ({
 		} catch (error) {
 			console.error("Error selecting images & files:", error)
 		}
-	}, [selectedModelInfo.supportsImages])
+	}, [selectedModelInfo.supportsImages, imagesOnly])
 
 	const shouldDisableFilesAndImages = selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
 
@@ -446,10 +406,9 @@ const ChatView = ({
 				) : (
 					<WelcomeSection
 						hideAnnouncement={hideAnnouncement}
-						onTaskSelect={onTaskSelect}
+						isVisible={!isHidden}
 						shouldShowQuickWins={shouldShowQuickWins}
 						showAnnouncement={showAnnouncement}
-						showHaiTaskListView={showHaiTaskListView}
 						showHistoryView={showHistoryView}
 						taskHistory={taskHistory}
 						telemetrySetting={telemetrySetting}
@@ -468,62 +427,7 @@ const ChatView = ({
 				)}
 			</div>
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
-				<AutoApproveBar />
-				{/* TAG:HAI - Mark task as completed UI */}
-				{selectedHaiTask?.id &&
-					lastSuccessfullyExecutedTaskId &&
-					selectedHaiTask?.id === lastSuccessfullyExecutedTaskId &&
-					!enableButtons && (
-						<div
-							style={{
-								padding: "12px 15px 12px",
-								backgroundColor: "var(--vscode-editor-background)",
-								borderTop: "1px solid var(--vscode-panel-border)",
-							}}>
-							<p style={{ margin: "0px 0px 6px" }}>Do you want to mark this task as completed?</p>
-							<div style={{ display: "flex" }}>
-								<VSCodeButton
-									appearance="primary"
-									onClick={async () => {
-										try {
-											setLastSuccessfullyExecutedTaskId(undefined)
-
-											const request: UpdateTaskStatusRequest = {
-												metadata: {},
-												folderPath: haiConfigFolder,
-												taskId: selectedHaiTask?.id,
-												status: "Completed",
-											}
-											const response = await UiServiceClient.updateTaskStatus(request)
-											if (response.success) {
-												onTaskSelect(null)
-											} else {
-												console.error("Failed to mark task as completed:", response.message)
-											}
-										} catch (error) {
-											console.error("Failed to mark task as completed:", error)
-										}
-									}}
-									style={{
-										marginRight: "6px",
-										flexGrow: 1,
-									}}>
-									Yes
-								</VSCodeButton>
-								<VSCodeButton
-									appearance="secondary"
-									onClick={() => {
-										setLastSuccessfullyExecutedTaskId(undefined)
-										onTaskSelect(null)
-									}}
-									style={{
-										flexGrow: 1,
-									}}>
-									No
-								</VSCodeButton>
-							</div>
-						</div>
-					)}
+				{!hideAutoApprove && <AutoApproveBar />}
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}

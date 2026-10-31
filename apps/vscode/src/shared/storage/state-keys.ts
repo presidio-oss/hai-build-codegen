@@ -9,7 +9,7 @@ import {
 } from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
+import type { CloudTaskTargetSelection, RememberedCloudStatuses } from "@shared/cloud/cloud-sessions"
 import { HistoryItem } from "@shared/HistoryItem"
 import { IHaiStory } from "@shared/hai-task"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
@@ -96,6 +96,12 @@ const GLOBAL_STATE_FIELDS = {
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	remoteSkillsToggles: { default: {} as ClineRulesToggles },
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
+	// Last Local/Cloud choice (and repository) picked on the home screen for new tasks
+	cloudTaskTarget: { default: undefined as CloudTaskTargetSelection | undefined },
+	// Cline model picked in Settings for new cloud tasks
+	cloudModelId: { default: undefined as string | undefined },
+	// Last agent status confirmed over a live connection, per cloud session id
+	cloudSessionStatuses: { default: {} as RememberedCloudStatuses },
 	// Path to worktree that should auto-open Cline sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
 } satisfies FieldDefinitions
@@ -278,9 +284,9 @@ const USER_SETTINGS_FIELDS = {
 	useAutoCondense: { default: true as boolean },
 	subagentsEnabled: { default: false as boolean },
 	worktreesEnabled: { default: false as boolean },
+	cloudSessionsEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
 	mode: { default: "act" as Mode },
-	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
 	showFeatureTips: { default: false as boolean },
