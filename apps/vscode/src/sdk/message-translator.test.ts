@@ -288,6 +288,82 @@ describe("translateSessionEvent — pending prompts", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — agent_event content_start", () => {
+	it("keeps verifier worker output and completion out of the parent chat", () => {
+		const state = new MessageTranslatorState()
+		const translate = (event: AgentEvent) =>
+			translateSessionEvent({ type: "agent_event", payload: { sessionId: "session-1", event } }, state)
+		translate({
+			type: "content_start",
+			contentType: "tool",
+			toolName: "ux_verifier",
+			toolCallId: "verify",
+			input: { task: "Check app" },
+			agentId: "lead",
+			parentAgentId: null,
+		})
+		const workerEvents: AgentEvent[] = [
+			{ type: "content_start", contentType: "text", text: "Worker observations" },
+			{ type: "done", reason: "completed", text: "Worker complete", iterations: 1 },
+		]
+		for (const event of workerEvents) {
+			const result = translate({ ...event, agentId: "worker", parentAgentId: "lead" })
+			expect(result.messages).toEqual([])
+			expect(result.turnComplete).toBe(false)
+			expect(result.sessionEnded).toBe(false)
+		}
+		const parent = translate({
+			type: "content_start",
+			contentType: "text",
+			text: "Combining findings",
+			agentId: "lead",
+			parentAgentId: null,
+		})
+		expect(parent.messages).toEqual(
+			expect.arrayContaining([expect.objectContaining({ say: "text", text: "Combining findings" })]),
+		)
+	})
+
+	it("keeps parent messages visible while a generic subagent is running", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "spawn_agent",
+						toolCallId: "spawn",
+						input: { task: "Check app" },
+						agentId: "lead",
+						parentAgentId: null,
+					},
+				},
+			},
+			state,
+		)
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "Parent progress",
+						agentId: "lead",
+						parentAgentId: null,
+					},
+				},
+			},
+			state,
+		)
+		expect(result.messages).toEqual(
+			expect.arrayContaining([expect.objectContaining({ say: "text", text: "Parent progress" })]),
+		)
+	})
+
 	it("reuses the approved tool prompt row for the matching tool lifecycle", () => {
 		const state = new MessageTranslatorState()
 		const approvedMessageTs = 42
@@ -1482,6 +1558,27 @@ describe("translateSessionEvent — agent_event error", () => {
 		const result = translateSessionEvent(event, state)
 		expect(result.turnComplete).toBe(true)
 		expect(state.wasErrorSeen()).toBe(true)
+		expect(result.messages.map((message) => message.ask ?? message.say)).toEqual(["api_req_started", "api_req_failed"])
+		expect(result.messages[1].text).toBe("stream failed before assistant output")
+	})
+
+	it("renders a failure carried only by done(reason:'error') once, as a credit error when it is one", () => {
+		const state = new MessageTranslatorState()
+		const done = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: { type: "done", reason: "error", text, iterations: 1 } as AgentEvent,
+			},
+		})
+
+		const first = translateSessionEvent(done("Not enough credits available"), state)
+		const failed = first.messages.filter((message) => message.ask === "api_req_failed")
+		expect(failed).toHaveLength(1)
+		expect(JSON.parse(failed[0].text ?? "{}")).toMatchObject({ code: "insufficient_credits" })
+
+		// An "error" event already rendered this turn's failure.
+		expect(translateSessionEvent(done("Not enough credits available"), state).messages).toEqual([])
 	})
 
 	it("does not record an error outcome for a successful done event", () => {
@@ -2530,6 +2627,24 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 		expect(end.messages[0].text).toBe("Hello world!")
 		expect(end.messages[0].partial).toBe(false)
 		expect(end.messages[0].ts).toBe(streamingTs)
+	})
+
+	it("accumulates text chunks that carry no running total, as a cloud session sends them", () => {
+		const state = new MessageTranslatorState()
+		const chunk = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: { sessionId: "s1", event: { type: "content_start", contentType: "text", text } as AgentEvent },
+		})
+		const end = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: { sessionId: "s1", event: { type: "content_end", contentType: "text", text } as AgentEvent },
+		})
+
+		expect(translateSessionEvent(chunk("Hello "), state).messages[0].text).toBe("Hello ")
+		expect(translateSessionEvent(chunk("world"), state).messages[0].text).toBe("Hello world")
+		translateSessionEvent(end("Hello world"), state)
+		// The next text block starts from nothing.
+		expect(translateSessionEvent(chunk("Next"), state).messages[0].text).toBe("Next")
 	})
 
 	it("accumulates reasoning deltas into text for webview rendering", () => {

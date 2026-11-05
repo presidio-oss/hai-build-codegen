@@ -21,6 +21,7 @@ import {
 	AgentChangesPanel,
 	AgentPullRequestBar,
 	AgentCommandOutput,
+	AgentUxVerification,
 	AgentImageLightboxContent,
 	AgentAskQuestion,
 	AgentContextUsage,
@@ -39,12 +40,39 @@ import {
 	Switch,
 } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
+import {
+	MessageScroller,
+	MessageScrollerProvider,
+	useMessageScrollerVisibility,
+} from "@cline/ui/components/message-scroller";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
+import {
+	agentMarkdownControlsWithMermaid,
+	createLazyMermaidPlugin,
+	DIAGRAM_LINK_HREF_ATTRIBUTE,
+	neutralizeDiagramLinks,
+} from "@cline/ui/components/markdown";
+import { createMermaidRenderer } from "@cline/ui/components/mermaid-block";
+import {
+	computePngExportSize,
+	resolveDiagramSlug,
+} from "@cline/ui/components/mermaid-diagram";
+
+if (
+	[MessageScroller, MessageScrollerProvider, useMessageScrollerVisibility].some(
+		(part) => typeof part !== "function",
+	)
+) {
+	throw new Error("packed message-scroller exports are missing");
+}
+
+if (typeof AgentUxVerification !== "function") throw new Error("packed UX verifier export is missing");
 
 for (const specifier of [
 	"@cline/ui/components.css",
 	"@cline/ui/components/markdown.css",
+	"@cline/ui/components/message-scroller.css",
 	"@cline/ui/theme/palette.css",
 	"@cline/ui/theme/scoped-tokens.css",
 ]) {
@@ -54,7 +82,7 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
-for (const name of ["agent-changes", "agent-pull-request-bar"]) {
+for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
 	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
 		throw new Error("packed review UI stylesheet is missing: " + name);
 	}
@@ -80,6 +108,44 @@ if (summary.label !== "Read file app.tsx (10–80)" || summary.kind !== "read") 
 }
 if (typeof ToolFileDiff !== "function") {
 	throw new Error("tool-diff subpath did not export ToolFileDiff");
+}
+// Assert the control shape rather than a "not false" check, which would also
+// accept undefined or an empty object and silently ship diagrams without their
+// controls. (This block lives inside the importCheck template literal above, so
+// it must avoid backticks and dollar-brace sequences.)
+const mermaidControls = agentMarkdownControlsWithMermaid.mermaid;
+if (
+	typeof createLazyMermaidPlugin !== "function" ||
+	typeof mermaidControls !== "object" ||
+	mermaidControls === null ||
+	mermaidControls.copy !== true ||
+	mermaidControls.download !== true ||
+	mermaidControls.fullscreen !== true ||
+	mermaidControls.panZoom !== true
+) {
+	throw new Error("markdown subpath did not export Mermaid opt-in controls");
+}
+// A substring check for the original href would also match the preserved
+// data-cline-diagram-href attribute, so assert on attribute boundaries instead.
+const neutralizedDiagram =
+	typeof neutralizeDiagramLinks === "function"
+		? neutralizeDiagramLinks('<svg><a href="https://example.com/">x</a></svg>')
+		: "";
+if (
+	DIAGRAM_LINK_HREF_ATTRIBUTE !== "data-cline-diagram-href" ||
+	neutralizedDiagram.includes(" href=") ||
+	neutralizedDiagram.includes(" xlink:href=") ||
+	!neutralizedDiagram.includes('data-cline-diagram-href="https://example.com/"')
+) {
+	throw new Error("markdown subpath did not export diagram link neutralization");
+}
+if (
+	createMermaidRenderer().language !== "mermaid" ||
+	resolveDiagramSlug({ meta: 'title="Smoke Test"', source: "flowchart LR" }) !==
+		"smoke-test" ||
+	computePngExportSize({ height: 10_000, width: 100 }).height > 4096
+) {
+	throw new Error("mermaid subpaths returned unexpected results");
 }
 if (
 	!AgentConversationHeader ||
@@ -126,11 +192,34 @@ async function run(command: string[], cwd: string): Promise<void> {
 	}
 }
 
-function createConsumer(root: string): void {
+async function pack(cwd: string, destination: string): Promise<string> {
+	mkdirSync(destination, { recursive: true });
+	await run(
+		[
+			process.execPath,
+			"pm",
+			"pack",
+			"--ignore-scripts",
+			"--destination",
+			destination,
+		],
+		cwd,
+	);
+	const archiveName = readdirSync(destination).find((name) =>
+		name.endsWith(".tgz"),
+	);
+	if (!archiveName) throw new Error("bun pm pack did not create an archive");
+	return join(destination, archiveName);
+}
+
+function createConsumer(
+	root: string,
+	overrides: Record<string, string> = {},
+): void {
 	mkdirSync(root, { recursive: true });
 	writeFileSync(
 		join(root, "package.json"),
-		`${JSON.stringify({ name: "cline-ui-smoke", private: true, type: "module" }, null, 2)}\n`,
+		`${JSON.stringify({ name: "cline-ui-smoke", private: true, type: "module", overrides }, null, 2)}\n`,
 	);
 }
 
@@ -293,36 +382,26 @@ async function verifyTailwindContract(
 const temporaryRoot = mkdtempSync(join(tmpdir(), "cline-ui-package-"));
 
 try {
-	let archive = process.argv[2] ? resolve(process.argv[2]) : undefined;
-	if (!archive) {
-		const packDirectory = join(temporaryRoot, "pack");
-		mkdirSync(packDirectory, { recursive: true });
-		await run(
-			[
-				process.execPath,
-				"pm",
-				"pack",
-				"--ignore-scripts",
-				"--destination",
-				packDirectory,
-			],
-			packageRoot,
-		);
-		const archiveName = readdirSync(packDirectory).find((name) =>
-			name.endsWith(".tgz"),
-		);
-		if (!archiveName) throw new Error("bun pm pack did not create an archive");
-		archive = join(packDirectory, archiveName);
-	}
+	const archive = process.argv[2]
+		? resolve(process.argv[2])
+		: await pack(packageRoot, join(temporaryRoot, "pack"));
+	// The packed UI pins @cline/shared to the workspace version, which is not on
+	// npm yet during a release, so both consumers install the local pack. npm
+	// dedupes onto it directly; Bun only resolves it through an override.
+	const sharedArchive = await pack(
+		join(packageRoot, "../shared"),
+		join(temporaryRoot, "shared-pack"),
+	);
 
 	const bunConsumer = join(temporaryRoot, "bun-consumer");
-	createConsumer(bunConsumer);
+	createConsumer(bunConsumer, { "@cline/shared": `file:${sharedArchive}` });
 	await run(
 		[
 			process.execPath,
 			"add",
 			"--ignore-scripts",
 			archive,
+			sharedArchive,
 			"react@19.2.4",
 			"react-dom@19.2.4",
 			"@pierre/diffs@1.4.0",
@@ -352,6 +431,7 @@ try {
 			"--no-audit",
 			"--no-fund",
 			archive,
+			sharedArchive,
 			"react@18.3.1",
 			"react-dom@18.3.1",
 			"@pierre/diffs@1.3.2",
