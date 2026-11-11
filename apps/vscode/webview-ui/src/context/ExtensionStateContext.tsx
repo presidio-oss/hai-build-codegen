@@ -5,7 +5,7 @@ import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo, ProviderModelsResponse } from "@shared/proto/cline/models"
-import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
+import type { TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
@@ -51,7 +51,6 @@ interface ProviderModelsState {
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
-	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
 	vercelAiGatewayModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
@@ -108,7 +107,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setTotalTasksSize: (value: number | null) => void
 	setExpandTaskHeader: (value: boolean) => void
 	setShowWelcome: (value: boolean) => void
-	setOnboardingModels: (value: OnboardingModelGroup | undefined) => void
 	startProviderModelsRequest: (providerId: ProviderId, requestId: string) => void
 	applyProviderModelsResponse: (response: ProviderModelsResponse) => void
 
@@ -149,7 +147,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	closeMcpView: () => void
 
 	// Event callbacks
-	onRelinquishControl: (callback: () => void) => () => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -328,13 +325,14 @@ export const ExtensionStateContextProvider: React.FC<{
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
-		onboardingModels: undefined,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 		useAutoCondense: true,
 		compactionStrategy: "basic",
 		webSearchEnabled: false,
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: false },
+		cloudSessionsAvailable: false,
+		cloudSessionsEnabled: false,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
@@ -361,7 +359,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [didHydrateState, setDidHydrateState] = useState(false)
 
 	const [showWelcome, setShowWelcome] = useState(false)
-	const [onboardingModels, setOnboardingModels] = useState<OnboardingModelGroup | undefined>(undefined)
 
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
@@ -457,18 +454,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
-	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
-
-	// Add ref for callbacks
-	const relinquishControlCallbacks = useRef<Set<() => void>>(new Set())
-
-	// Create hook function
-	const onRelinquishControl = useCallback((callback: () => void) => {
-		relinquishControlCallbacks.current.add(callback)
-		return () => {
-			relinquishControlCallbacks.current.delete(callback)
-		}
-	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	// Convergent-replica state for clineMessages. The partial-message stream and the full state
@@ -518,10 +503,8 @@ export const ExtensionStateContextProvider: React.FC<{
 							// Update welcome screen state based on API configuration if welcome view not in progress
 							if (!newState.welcomeViewCompleted && !showWelcome) {
 								setShowWelcome(true)
-								setOnboardingModels(newState.onboardingModels)
 							} else if (newState.welcomeViewCompleted) {
 								setShowWelcome(false)
-								setOnboardingModels(undefined)
 							}
 
 							setDidHydrateState(true)
@@ -768,20 +751,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				console.error("Failed to fetch available terminal profiles:", error)
 			})
 
-		// Subscribe to relinquish control events
-		relinquishControlUnsubscribeRef.current = UiServiceClient.subscribeToRelinquishControl(EmptyRequest.create({}), {
-			onResponse: () => {
-				// Call all registered callbacks
-				relinquishControlCallbacks.current.forEach((callback) => {
-					callback()
-				})
-			},
-			onError: (error: any) => {
-				console.error("Error in relinquishControl subscription:", error)
-			},
-			onComplete: () => {},
-		})
-
 		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
@@ -831,10 +800,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (workspaceUpdatesUnsubscribeRef.current) {
 				workspaceUpdatesUnsubscribeRef.current()
 				workspaceUpdatesUnsubscribeRef.current = null
-			}
-			if (relinquishControlUnsubscribeRef.current) {
-				relinquishControlUnsubscribeRef.current()
-				relinquishControlUnsubscribeRef.current = null
 			}
 			if (mcpServersSubscriptionRef.current) {
 				mcpServersSubscriptionRef.current()
@@ -927,7 +892,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		...state,
 		didHydrateState,
 		showWelcome,
-		onboardingModels,
 		openRouterModels,
 		vercelAiGatewayModels,
 		hicapModels,
@@ -986,7 +950,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		closeMarketplaceView,
 		setShowAnnouncement,
 		setShowWelcome,
-		setOnboardingModels,
 		startProviderModelsRequest,
 		applyProviderModelsResponse,
 		setShouldShowAnnouncement: (value) =>
@@ -1064,7 +1027,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshVercelAiGatewayModels,
 		refreshHicapModels,
 		refreshLiteLlmModels,
-		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,
 		setExpandTaskHeader,
