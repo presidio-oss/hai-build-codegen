@@ -257,7 +257,6 @@ const createMockState = (overrides: any = {}) => ({
 	clineMessages: mockActiveMessages,
 	taskHistory: mockTaskHistory,
 	apiConfiguration: mockApiConfiguration,
-	onboardingModels: undefined,
 	openRouterModels: STORYBOOK_OPENROUTER_MODELS,
 	showAnnouncement: false,
 	backgroundEditEnabled: false,

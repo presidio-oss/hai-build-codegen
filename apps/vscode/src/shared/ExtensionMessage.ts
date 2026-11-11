@@ -14,8 +14,7 @@ import type { CloudTaskTargetView, CurrentCloudTaskInfo } from "./cloud/cloud-se
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
-import { OnboardingModelGroup } from "./proto/cline/state"
-import { Mode, OpenaiReasoningEffort } from "./storage/types"
+import { Mode } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
 // webview will hold state
@@ -41,13 +40,11 @@ export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
-	onboardingModels: OnboardingModelGroup | undefined
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	remoteBrowserHost?: string
 	preferredLanguage?: string
-	openaiReasoningEffort?: OpenaiReasoningEffort
 	mode: Mode
 	clineMessages: ClineMessage[]
 	checkpointRestoreInput?: {
