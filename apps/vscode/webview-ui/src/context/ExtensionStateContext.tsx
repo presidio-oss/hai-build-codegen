@@ -54,8 +54,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	openRouterModels: Record<string, ModelInfo>
 	vercelAiGatewayModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
-	liteLlmModels: Record<string, ModelInfo>
-	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
 	basetenModels: Record<string, ModelInfo>
@@ -114,7 +112,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	refreshOpenRouterModels: () => void
 	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
-	refreshLiteLlmModels: () => Promise<void>
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -365,11 +362,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	})
 	const [vercelAiGatewayModels, setVercelAiGatewayModels] = useState<Record<string, ModelInfo>>({})
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
-	const [liteLlmModels, setLiteLlmModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
 
-	const [openAiModels, _setOpenAiModels] = useState<string[]>([])
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
@@ -451,8 +446,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const worktreesButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
-	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
-	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -687,37 +680,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Subscribe to OpenRouter models updates
-		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
-			onResponse: (response: OpenRouterCompatibleModelInfo) => {
-				const models = fromProtobufModels(response.models)
-				setOpenRouterModels({
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
-					...models,
-				})
-			},
-			onError: (error: any) => {
-				console.error("Error in OpenRouter models subscription:", error)
-			},
-			onComplete: () => {
-				console.log("OpenRouter models subscription completed")
-			},
-		})
-
-		// Subscribe to LiteLLM models updates
-		liteLlmModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToLiteLlmModels(EmptyRequest.create({}), {
-			onResponse: (response: OpenRouterCompatibleModelInfo) => {
-				const models = fromProtobufModels(response.models)
-				setLiteLlmModels(models)
-			},
-			onError: (error: any) => {
-				console.error("Error in LiteLLM models subscription:", error)
-			},
-			onComplete: () => {
-				console.log("LiteLLM models subscription completed")
-			},
-		})
-
 		// Initialize webview using gRPC
 		UiServiceClient.initializeWebview(EmptyRequest.create({}))
 			.then(() => {
@@ -789,14 +751,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				partialMessageUnsubscribeRef.current()
 				partialMessageUnsubscribeRef.current = null
 			}
-			if (openRouterModelsUnsubscribeRef.current) {
-				openRouterModelsUnsubscribeRef.current()
-				openRouterModelsUnsubscribeRef.current = null
-			}
-			if (liteLlmModelsUnsubscribeRef.current) {
-				liteLlmModelsUnsubscribeRef.current()
-				liteLlmModelsUnsubscribeRef.current = null
-			}
 			if (workspaceUpdatesUnsubscribeRef.current) {
 				workspaceUpdatesUnsubscribeRef.current()
 				workspaceUpdatesUnsubscribeRef.current = null
@@ -835,15 +789,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
 	}, [])
 
-	const refreshLiteLlmModels = useCallback(() => {
-		return ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
-			.then((response: OpenRouterCompatibleModelInfo) => {
-				const models = fromProtobufModels(response.models)
-				setLiteLlmModels(models)
-			})
-			.catch((error: Error) => console.error("Failed to refresh LiteLLM models:", error))
-	}, [])
-
 	const refreshBasetenModels = useCallback(() => {
 		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
 			.then((response) => {
@@ -876,17 +821,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		if (state.apiConfiguration?.basetenApiKey) {
 			refreshBasetenModels()
 		}
-		if (state.apiConfiguration?.liteLlmApiKey) {
-			refreshLiteLlmModels()
-		}
-	}, [
-		refreshOpenRouterModels,
-		refreshVercelAiGatewayModels,
-		state?.apiConfiguration?.basetenApiKey,
-		refreshBasetenModels,
-		state?.apiConfiguration?.liteLlmApiKey,
-		refreshLiteLlmModels,
-	])
+	}, [refreshOpenRouterModels, refreshVercelAiGatewayModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,
@@ -895,8 +830,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		openRouterModels,
 		vercelAiGatewayModels,
 		hicapModels,
-		liteLlmModels,
-		openAiModels,
 		requestyModels,
 		groqModels: groqModelsState,
 		basetenModels: basetenModelsState,
@@ -1026,7 +959,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshOpenRouterModels,
 		refreshVercelAiGatewayModels,
 		refreshHicapModels,
-		refreshLiteLlmModels,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,
 		setExpandTaskHeader,
