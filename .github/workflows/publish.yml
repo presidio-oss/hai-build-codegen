@@ -112,7 +112,7 @@ jobs:
                   # OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
               run: |
                   # Required to generate the .vsix
-                  cd apps/vscode && vsce package --out "../../hai-build-code-generator-${{ steps.get_version.outputs.version }}.vsix" --allow-package-secrets sendgrid
+                  cd apps/vscode && vsce package --no-dependencies --out "../../hai-build-code-generator-${{ steps.get_version.outputs.version }}.vsix" --allow-package-secrets sendgrid
 
                   if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
                     npm run publish:marketplace:prerelease
