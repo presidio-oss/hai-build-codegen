@@ -1,19 +1,63 @@
-import type { ITelemetryService } from "@cline/shared";
+import {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
+	type ITelemetryService,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
+} from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
 	CORE_TELEMETRY_EVENTS,
+	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	captureExtensionActivated,
+	captureGitSnapshot,
+	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
+	captureScheduleRun,
+	captureTaskCompleted,
+	captureTaskCreated,
+	captureTaskLifecycleEvent,
+	captureTaskRestarted,
 	captureTelemetryOptOut,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
+	clearAccountTelemetryIdentity,
+	type GitSnapshotProperties,
+	identifyAccount,
 } from "./core-events";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
 import { TelemetryService } from "./TelemetryService";
+
+const gitSnapshot: GitSnapshotProperties = {
+	schema_version: 1,
+	sessionId: "session-1",
+	ulid: "session-1",
+	providerId: "cline",
+	workspace_id: "opaque-workspace",
+	workspace_root_count: 2,
+	observation_window_id: "window-1",
+	observation_sequence: 1,
+	observed_at: "2026-01-01T00:00:00.000Z",
+	boundary: "model_call",
+	request_id: "backend-request",
+	request_id_status: "present",
+	git: {
+		state: "ok",
+		head_sha: "a".repeat(40),
+		dirty: false,
+		staged: false,
+		unstaged: false,
+		untracked: false,
+	},
+};
 
 interface TelemetryStub {
 	telemetry: ITelemetryService;
@@ -64,6 +108,23 @@ describe("captureExtensionActivated", () => {
 	});
 });
 
+describe("captureGitSnapshot", () => {
+	test("uses the catalog event and preserves the typed payload as ordinary telemetry", () => {
+		const stub = createTelemetryStub();
+		captureGitSnapshot(stub.telemetry, gitSnapshot);
+		expect(CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT).toBe("task.git_snapshot");
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT,
+			properties: gitSnapshot,
+		});
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() => captureGitSnapshot(undefined, gitSnapshot)).not.toThrow();
+	});
+});
+
 describe("captureTelemetryOptOut", () => {
 	test("emits user.opt_out as a required event", () => {
 		const stub = createTelemetryStub();
@@ -73,6 +134,80 @@ describe("captureTelemetryOptOut", () => {
 			"user.opt_out",
 			undefined,
 		);
+	});
+});
+
+describe("task lifecycle contract", () => {
+	test.each([
+		["task.created", captureTaskCreated],
+		["task.restarted", captureTaskRestarted],
+	] as const)("emits %s with canonical provider and model fields", (event, emit) => {
+		const stub = createTelemetryStub();
+		emit(stub.telemetry, {
+			ulid: "session-1",
+			provider: "anthropic",
+			model: "claude-sonnet-4.6",
+		});
+
+		expect(captureCallAt(stub, 0)).toEqual({
+			event,
+			properties: {
+				ulid: "session-1",
+				provider: "anthropic",
+				model: "claude-sonnet-4.6",
+			},
+		});
+	});
+
+	test("emits task.completed with canonical provider and model fields", () => {
+		const stub = createTelemetryStub();
+		captureTaskCompleted(stub.telemetry, {
+			ulid: "session-1",
+			provider: "anthropic",
+			model: "claude-sonnet-4.6",
+			source: "submit_and_exit",
+		});
+
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: "task.completed",
+			properties: {
+				ulid: "session-1",
+				provider: "anthropic",
+				model: "claude-sonnet-4.6",
+				source: "submit_and_exit",
+			},
+		});
+	});
+});
+
+describe("CORE_TELEMETRY_EVENTS", () => {
+	test("catalogs the unexpected reasoning token event", () => {
+		expect(CORE_TELEMETRY_EVENTS.AGENT.UNEXPECTED_REASONING_TOKENS).toBe(
+			AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+		);
+	});
+
+	test("catalogs task lifecycle events", () => {
+		expect(CORE_TELEMETRY_EVENTS.TASK.PROVIDER_REQUEST_STARTED).toBe(
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.PROVIDER_STREAM_STARTED).toBe(
+			TASK_PROVIDER_STREAM_STARTED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.FIRST_CHUNK_RECEIVED).toBe(
+			TASK_FIRST_CHUNK_RECEIVED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.PROVIDER_STREAM_FAILED).toBe(
+			TASK_PROVIDER_STREAM_FAILED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.CANCELLED).toBe(TASK_CANCELLED_EVENT);
+		expect(CORE_TELEMETRY_EVENTS.TASK.MAX_TOKENS_RECOVERY).toBe(
+			TASK_MAX_TOKENS_RECOVERY_EVENT,
+		);
+	});
+
+	test("re-exports the task lifecycle telemetry helper", () => {
+		expect(captureTaskLifecycleEvent).toBe(captureSharedTaskLifecycleEvent);
 	});
 });
 
@@ -257,6 +392,35 @@ describe("captureWorkspacePathResolved", () => {
 		).not.toThrow();
 	});
 });
+
+describe("captureMistakeLimitReached", () => {
+	const baseProps = {
+		ulid: "sess-1",
+		model: "claude-3-5-sonnet",
+		provider: "anthropic",
+		reason: "tool_execution_failed",
+		consecutiveMistakes: 3,
+		maxConsecutiveMistakes: 3,
+	};
+
+	test("emits task.mistake_limit_reached with limit context and a timestamp", () => {
+		const stub = createTelemetryStub();
+		captureMistakeLimitReached(stub.telemetry, baseProps);
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe("task.mistake_limit_reached");
+		expect(properties).toMatchObject(baseProps);
+		expect(typeof properties?.timestamp).toBe("string");
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			captureMistakeLimitReached(undefined, baseProps),
+		).not.toThrow();
+	});
+});
+
 describe("captureCompactionExecuted", () => {
 	const baseProps = {
 		ulid: "ulid-1",
@@ -441,6 +605,38 @@ describe("captureRunCommandsTimeout", () => {
 	});
 });
 
+describe("captureCompactionBudgetEmergency", () => {
+	test("emits task.compaction_budget_emergency with action metadata", () => {
+		const stub = createTelemetryStub();
+		captureCompactionBudgetEmergency(stub.telemetry, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			policyIntent: "basic_compaction_projection",
+			actionCount: 2,
+			warningCount: 1,
+			liveTailHandling: "included_degraded",
+			provider: "anthropic",
+			modelId: "claude-sonnet-4",
+		});
+
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe("task.compaction_budget_emergency");
+		expect(properties).toMatchObject({
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			policyIntent: "basic_compaction_projection",
+			actionCount: 2,
+			warningCount: 1,
+			liveTailHandling: "included_degraded",
+		});
+		expect(typeof (properties as Record<string, unknown>).timestamp).toBe(
+			"string",
+		);
+	});
+});
+
 /**
  * Telemetry-policy regression coverage.
  *
@@ -501,6 +697,18 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			adapters: [adapter],
 		});
 		captureExtensionActivated(service);
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
+	test("captureGitSnapshot respects the ordinary opt-out path", () => {
+		const { adapter, emit, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({ adapters: [adapter] });
+		expect(service.isEnabled()).toBe(false);
+		captureGitSnapshot(service, gitSnapshot);
+		expect(emit).toHaveBeenCalledWith(
+			CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT,
+			expect.objectContaining(gitSnapshot),
+		);
 		expect(emitRequired).not.toHaveBeenCalled();
 	});
 
@@ -603,6 +811,24 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 		expect(emitRequired).not.toHaveBeenCalled();
 	});
 
+	test("captureCompactionBudgetEmergency never invokes captureRequired", () => {
+		const { adapter, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({
+			distinctId: "test-distinct-id",
+			adapters: [adapter],
+		});
+		captureCompactionBudgetEmergency(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			policyIntent: "basic_compaction_projection",
+			actionCount: 1,
+			warningCount: 0,
+			liveTailHandling: "included_degraded",
+		});
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
 	test("a correctly-policed adapter drops these events when disabled", () => {
 		// This test layers on top of the previous four to assert the *full*
 		// end-to-end policy: when the adapter is disabled, a real adapter
@@ -681,6 +907,15 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			command_count: 2,
 			duration_ms: 1502,
 		});
+		captureCompactionBudgetEmergency(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			policyIntent: "basic_compaction_projection",
+			actionCount: 1,
+			warningCount: 0,
+			liveTailHandling: "included_degraded",
+		});
 		expect(observed).toEqual([]);
 		expect(dropped).toEqual([
 			"user.extension_activated",
@@ -691,6 +926,149 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			"task.compaction_executed",
 			"task.compaction_skipped",
 			"sdk.tool_timeout",
+			"task.compaction_budget_emergency",
 		]);
 	});
+});
+
+describe("identifyAccount", () => {
+	test("sets user_id, account_id, and distinct_id for an authenticated user without org", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, {
+			id: "usr-123",
+			email: "test@example.com",
+			provider: "cline",
+		});
+		expect(vi.mocked(stub.telemetry.setDistinctId)).toHaveBeenCalledWith(
+			"usr-123",
+		);
+		expect(
+			vi.mocked(stub.telemetry.updateCommonProperties),
+		).toHaveBeenCalledWith(
+			expect.objectContaining({
+				user_id: "usr-123",
+				account_id: "usr-123",
+				account_email: "test@example.com",
+				provider: "cline",
+			}),
+		);
+	});
+
+	test("sets user_id, org context for an authenticated user with an active organization", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, {
+			id: "usr-456",
+			email: "alice@example.com",
+			provider: "cline",
+			organizationId: "org-1",
+			organizationName: "Acme",
+			memberId: "member-9",
+		});
+		expect(
+			vi.mocked(stub.telemetry.updateCommonProperties),
+		).toHaveBeenCalledWith(
+			expect.objectContaining({
+				user_id: "usr-456",
+				account_id: "usr-456",
+				organization_id: "org-1",
+				organization_name: "Acme",
+				member_id: "member-9",
+			}),
+		);
+	});
+
+	test("user_id and account_id are set to the same value", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, { id: "usr-789", provider: "cline" });
+		const call = vi.mocked(stub.telemetry.updateCommonProperties).mock
+			.calls[0]?.[0] as Record<string, unknown> | undefined;
+		expect(call?.user_id).toBe("usr-789");
+		expect(call?.account_id).toBe("usr-789");
+		expect(call?.user_id).toBe(call?.account_id);
+	});
+
+	test("does not set distinct_id when account id is absent", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, {
+			email: "anon@example.com",
+			provider: "cline",
+		});
+		expect(stub.telemetry.setDistinctId).not.toHaveBeenCalled();
+	});
+
+	test("trims whitespace from account.id before setting distinct_id", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, { id: "  usr-trim  " });
+		expect(vi.mocked(stub.telemetry.setDistinctId)).toHaveBeenCalledWith(
+			"usr-trim",
+		);
+	});
+
+	test("does not set distinct_id for blank id string", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, { id: "   " });
+		expect(stub.telemetry.setDistinctId).not.toHaveBeenCalled();
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			identifyAccount(undefined, { id: "usr-123", provider: "cline" }),
+		).not.toThrow();
+	});
+});
+
+describe("clearAccountTelemetryIdentity", () => {
+	test("restores anonymous identity and clears account properties", () => {
+		const stub = createTelemetryStub();
+
+		clearAccountTelemetryIdentity(stub.telemetry, "  machine-123  ");
+
+		expect(stub.telemetry.setDistinctId).toHaveBeenCalledWith("machine-123");
+		expect(stub.telemetry.updateCommonProperties).toHaveBeenCalledWith({
+			user_id: undefined,
+			account_id: undefined,
+			account_email: undefined,
+			provider: undefined,
+			organization_id: undefined,
+			organization_name: undefined,
+			member_id: undefined,
+		});
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			clearAccountTelemetryIdentity(undefined, "machine-123"),
+		).not.toThrow();
+	});
+});
+
+test("scheduler telemetry allowlists diagnostics and tolerates capture failures", () => {
+	const { telemetry, capture } = createTelemetryStub();
+	const input = {
+		phase: "finished" as const,
+		triggerKind: "schedule" as const,
+		attemptCount: 2,
+		startDelayMs: 60_000,
+		durationMs: 30_000,
+		outcome: "timeout" as const,
+		prompt: "private prompt",
+		workspaceRoot: "/private/workspace",
+		error: "secret",
+	};
+	captureScheduleRun(telemetry, input);
+	expect(capture).toHaveBeenCalledWith({
+		event: "schedule.run_finished",
+		properties: {
+			triggerKind: "schedule",
+			attemptCount: 2,
+			startDelayMs: 60_000,
+			durationMs: 30_000,
+			outcome: "timeout",
+		},
+	});
+	capture.mockImplementation(() => {
+		throw new Error("telemetry unavailable");
+	});
+	expect(() => captureScheduleRun(telemetry, input)).not.toThrow();
+	expect(() => captureScheduleRun(undefined, input)).not.toThrow();
 });

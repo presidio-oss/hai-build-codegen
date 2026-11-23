@@ -2,11 +2,16 @@
  * Identifier for the MCP tools that are used in native tool calls,
  * where each tool name is the combination of the server name + identifier + tool name.
  * This enables to uniquely identify which MCP server a tool belongs to.
+ *
+ * The timeout constants are re-exported from @cline/shared so the extension,
+ * CLI, and standalone core all resolve the same default and bounds.
  */
-export const CLINE_MCP_TOOL_IDENTIFIER = "0mcp0"
-export const DEFAULT_MCP_TIMEOUT_SECONDS = 60 // matches Anthropic's default timeout in their MCP SDK
-export const MIN_MCP_TIMEOUT_SECONDS = 1
-export type McpMode = "full" | "server-use-only" | "off"
+export {
+	DEFAULT_MCP_TIMEOUT_SECONDS,
+	MAX_MCP_TIMEOUT_SECONDS,
+	MIN_MCP_TIMEOUT_SECONDS,
+	resolveMcpTimeoutSeconds,
+} from "@cline/shared"
 
 export type McpServer = {
 	name: string
@@ -19,7 +24,6 @@ export type McpServer = {
 	prompts?: McpPrompt[]
 	disabled?: boolean
 	timeout?: number
-	uid?: string
 	oauthRequired?: boolean
 	oauthAuthStatus?: McpOAuthAuthStatus
 }
@@ -58,51 +62,6 @@ export type McpPrompt = {
 	title?: string
 	description?: string
 	arguments?: McpPromptArgument[]
-}
-
-export type McpPromptMessageContent =
-	| {
-			type: "text"
-			text: string
-	  }
-	| {
-			type: "image"
-			data: string
-			mimeType: string
-	  }
-	| {
-			type: "audio"
-			data: string
-			mimeType: string
-	  }
-	| {
-			type: "resource"
-			resource: {
-				uri: string
-				mimeType?: string
-				text?: string
-				blob?: string
-			}
-	  }
-
-export type McpPromptMessage = {
-	role: "user" | "assistant"
-	content: McpPromptMessageContent
-}
-
-export type McpPromptResponse = {
-	description?: string
-	messages: McpPromptMessage[]
-}
-
-export type McpResourceResponse = {
-	_meta?: Record<string, any>
-	contents: Array<{
-		uri: string
-		mimeType?: string
-		text?: string
-		blob?: string
-	}>
 }
 
 export type McpToolCallResponse = {

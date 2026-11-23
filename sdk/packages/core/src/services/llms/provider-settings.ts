@@ -1,9 +1,11 @@
 import * as Llms from "@cline/llms";
+import { ReasoningLevelSchema } from "@cline/shared";
 import { z } from "zod";
 import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
 	DEFAULT_INTERNAL_OCA_BASE_URL,
 } from "../../auth/oca";
+import { getPersistedProviderApiKey } from "../../auth/provider-auth-registry";
 import {
 	OPENAI_COMPATIBLE_PROVIDERS,
 	type ProviderDefaults,
@@ -58,11 +60,14 @@ export const AuthSettingsSchema = z.object({
 	refreshToken: z.string().optional(),
 	expiresAt: z.number().int().positive().optional(),
 	accountId: z.string().optional(),
+	// Active organization at last account load, for telemetry attribution.
+	organizationId: z.string().optional(),
+	organizationName: z.string().optional(),
+	memberId: z.string().optional(),
+	metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type AuthSettings = z.infer<typeof AuthSettingsSchema>;
-
-const ReasoningLevelSchema = z.enum(["none", "low", "medium", "high", "xhigh"]);
 
 export const ReasoningSettingsSchema = z.object({
 	enabled: z.boolean().optional(),
@@ -124,6 +129,7 @@ export type OcaSettings = z.infer<typeof OcaSettingsSchema>;
 
 export const ModelCatalogSettingsSchema = z.object({
 	loadLatestOnInit: z.boolean().optional(),
+	includeClineCloudModels: z.boolean().optional(),
 	loadPrivateOnAuth: z.boolean().optional(),
 	url: z.string().url().optional(),
 	cacheTtlMs: z.number().int().positive().optional(),
@@ -207,18 +213,19 @@ export function toProviderConfig(
 		unifiedReasoningLevel === "none" ? undefined : unifiedReasoningLevel;
 
 	const providerDefaults = OPENAI_COMPATIBLE_PROVIDERS[normalizedProviderId];
-	const generatedKnownModels = Object.assign(
-		{},
-		...Llms.resolveProviderModelCatalogKeys(normalizedProviderId).map(
-			(catalogKey) => Llms.getGeneratedModelsForProvider(catalogKey),
-		),
-	);
+	const generatedKnownModels =
+		Llms.getGeneratedModelsForRuntimeProvider(normalizedProviderId);
 	const generatedDefaultModelId = Object.keys(generatedKnownModels)[0];
 
-	const apiKey =
-		settings.auth?.accessToken ?? settings.apiKey ?? settings.auth?.apiKey;
+	const apiKey = getPersistedProviderApiKey(normalizedProviderId, settings);
+	// Precedence: explicit base URL > regional API line endpoint (e.g.
+	// Qwen/Moonshot/Z.AI "china" vs "international") > provider default.
 	const resolvedBaseUrl =
 		settings.baseUrl ??
+		Llms.resolveProviderApiLineBaseUrl(
+			normalizedProviderId,
+			settings.apiLine,
+		) ??
 		(normalizedProviderId === "oca"
 			? settings.oca?.mode === "internal"
 				? DEFAULT_INTERNAL_OCA_BASE_URL
@@ -291,6 +298,8 @@ export function toProviderConfig(
 		modelCatalog: settings.modelCatalog
 			? {
 					loadLatestOnInit: settings.modelCatalog.loadLatestOnInit,
+					includeClineCloudModels:
+						settings.modelCatalog.includeClineCloudModels,
 					loadPrivateOnAuth: settings.modelCatalog.loadPrivateOnAuth,
 					url: settings.modelCatalog.url,
 					cacheTtlMs: settings.modelCatalog.cacheTtlMs,

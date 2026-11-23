@@ -1,16 +1,17 @@
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { memo, type ReactNode, useCallback } from "react"
+import { memo, type ReactNode } from "react"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import Section from "../Section"
-import SettingsSlider from "../SettingsSlider"
+import { featureSettingControlId, featureSettingElementId } from "../settingsTargets"
 import { updateSetting } from "../utils/settingsHandlers"
 
 // Reusable checkbox component for feature settings
 interface FeatureCheckboxProps {
+	id?: string
 	checked: boolean | undefined
 	onChange: (checked: boolean) => void
 	label: string
@@ -28,53 +29,15 @@ interface FeatureToggle {
 	description: ReactNode
 	settingKey: keyof UpdateSettingsRequest
 	stateKey: string
-	/** If set, the setting value is nested with this key (e.g., "enabled" -> { enabled: checked }) */
-	nestedKey?: string
 }
 
 const agentFeatures: FeatureToggle[] = [
-	{
-		id: "subagents",
-		label: "Subagents",
-		description: "Let HAI run focused subagents in parallel to explore the codebase for you.",
-		stateKey: "subagentsEnabled",
-		settingKey: "subagentsEnabled",
-	},
-	{
-		id: "native-tool-call",
-		label: "Native Tool Call",
-		description: "Use native function calling when available",
-		stateKey: "nativeToolCallSetting",
-		settingKey: "nativeToolCallEnabled",
-	},
-	{
-		id: "parallel-tool-calling",
-		label: "Parallel Tool Calling",
-		description: "Execute multiple tool calls simultaneously",
-		stateKey: "enableParallelToolCalling",
-		settingKey: "enableParallelToolCalling",
-	},
-	{
-		id: "strict-plan-mode",
-		label: "Strict Plan Mode",
-		description: "Prevents file edits while in Plan mode",
-		stateKey: "strictPlanModeEnabled",
-		settingKey: "strictPlanModeEnabled",
-	},
 	{
 		id: "auto-compact",
 		label: "Auto Compact",
 		description: "Automatically compress conversation history.",
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
-	},
-	{
-		id: "focus-chain",
-		label: "Focus Chain",
-		description: "Maintain context focus across interactions",
-		stateKey: "focusChainEnabled",
-		settingKey: "focusChainSettings",
-		nestedKey: "enabled",
 	},
 ]
 
@@ -101,44 +64,11 @@ const editorFeatures: FeatureToggle[] = [
 		settingKey: "enableCheckpointsSetting",
 	},
 	{
-		id: "cline-web-tools",
-		label: "HAI Web Tools",
-		description: "Access web browsing and search capabilities",
-		stateKey: "clineWebToolsEnabled",
-		settingKey: "clineWebToolsEnabled",
-	},
-	{
 		id: "worktrees",
 		label: "Worktrees",
 		description: "Enables git worktree management for running parallel HAI tasks.",
 		stateKey: "worktreesEnabled",
 		settingKey: "worktreesEnabled",
-	},
-]
-
-const experimentalFeatures: FeatureToggle[] = [
-	{
-		id: "yolo",
-		label: "Yolo Mode",
-		description:
-			"Execute tasks without user's confirmation. Auto-switches from Plan to Act mode and disables the ask question tool. Use with extreme caution.",
-		stateKey: "yoloModeToggled",
-		settingKey: "yoloModeToggled",
-	},
-	{
-		id: "double-check-completion",
-		label: "Double-Check Completion",
-		description:
-			"Rejects the first completion attempt and asks the model to re-verify its work against the original task requirements before accepting.",
-		stateKey: "doubleCheckCompletionEnabled",
-		settingKey: "doubleCheckCompletionEnabled",
-	},
-	{
-		id: "lazy-teammate",
-		label: "Lazy Teammate Mode",
-		description: "Sometimes HAI just isn't feeling it today. For entertainment purposes only.",
-		stateKey: "lazyTeammateModeEnabled",
-		settingKey: "lazyTeammateModeEnabled",
 	},
 ]
 
@@ -154,6 +84,7 @@ const advancedFeatures: FeatureToggle[] = [
 
 const FeatureRow = memo(
 	({
+		id,
 		checked = false,
 		onChange,
 		label,
@@ -166,16 +97,17 @@ const FeatureRow = memo(
 		if (!isVisible) {
 			return null
 		}
+		const switchId = id ? featureSettingControlId(id) : label
 
 		const checkbox = (
 			<div className="flex items-center justify-between w-full">
-				<div>{label}</div>
+				<label htmlFor={switchId}>{label}</label>
 				<div>
 					<Switch
 						checked={checked}
 						className="shrink-0"
 						disabled={disabled || isRemoteLocked}
-						id={label}
+						id={switchId}
 						onCheckedChange={onChange}
 						size="lg"
 					/>
@@ -185,7 +117,9 @@ const FeatureRow = memo(
 		)
 
 		return (
-			<div className="flex flex-col items-start justify-between gap-4 py-3 w-full">
+			<div
+				className="flex flex-col items-start justify-between gap-4 py-3 px-1 w-full rounded-xs border border-transparent"
+				id={id ? featureSettingElementId(id) : undefined}>
 				<div className="space-y-0.5 flex-1 w-full">
 					{isRemoteLocked ? (
 						<Tooltip>
@@ -213,72 +147,30 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableCheckpointsSetting,
 		hooksEnabled,
 		mcpDisplayMode,
-		strictPlanModeEnabled,
-		yoloModeToggled,
 		useAutoCondense,
+		compactionStrategy,
+		webSearchEnabled,
 		subagentsEnabled,
-		clineWebToolsEnabled,
 		worktreesEnabled,
-		focusChainSettings,
-		remoteConfigSettings,
-		nativeToolCallSetting,
-		enableParallelToolCalling,
 		backgroundEditEnabled,
-		doubleCheckCompletionEnabled,
-		lazyTeammateModeEnabled,
 		showFeatureTips,
 	} = useExtensionState()
-
-	const handleFocusChainIntervalChange = useCallback(
-		(value: number) => {
-			updateSetting("focusChainSettings", { ...focusChainSettings, remindClineInterval: value })
-		},
-		[focusChainSettings],
-	)
-
-	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
 
 	// State lookup for mapped features
 	const featureState: Record<string, boolean | undefined> = {
 		showFeatureTips,
 		enableCheckpointsSetting,
-		strictPlanModeEnabled,
 		hooksEnabled,
-		nativeToolCallSetting,
-		focusChainEnabled: focusChainSettings?.enabled,
 		useAutoCondense,
 		subagentsEnabled,
-		clineWebToolsEnabled: clineWebToolsEnabled?.user,
 		worktreesEnabled: worktreesEnabled?.user,
-		enableParallelToolCalling,
 		backgroundEditEnabled,
-		doubleCheckCompletionEnabled,
-		lazyTeammateModeEnabled,
-		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 
 	// Visibility lookup for features with feature flags
 	const featureVisibility: Record<string, boolean | undefined> = {
-		clineWebToolsEnabled: clineWebToolsEnabled?.featureFlag,
 		worktreesEnabled: worktreesEnabled?.featureFlag,
 	}
-
-	// Handler for feature toggle changes, supports nested settings like focusChainSettings
-	const handleFeatureChange = useCallback(
-		(feature: FeatureToggle, checked: boolean) => {
-			if (feature.nestedKey) {
-				// For nested settings, spread the existing value and set the nested key
-				let currentValue = {}
-				if (feature.settingKey === "focusChainSettings") {
-					currentValue = focusChainSettings ?? {}
-				}
-				updateSetting(feature.settingKey, { ...currentValue, [feature.nestedKey]: checked })
-			} else {
-				updateSetting(feature.settingKey, checked)
-			}
-		},
-		[focusChainSettings],
-	)
 
 	return (
 		<div className="mb-2">
@@ -292,32 +184,38 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50"
 							id="agent-features">
 							{agentFeatures.map((feature) => (
-								<div key={feature.id}>
-									<FeatureRow
-										checked={featureState[feature.stateKey]}
-										description={feature.description}
-										isVisible={featureVisibility[feature.stateKey] ?? true}
-										key={feature.id}
-										label={feature.label}
-										onChange={(checked) =>
-											feature.nestedKey === "enabled"
-												? handleFeatureChange(feature, checked)
-												: updateSetting(feature.settingKey, checked)
-										}
-									/>
-									{feature.id === "focus-chain" && featureState[feature.stateKey] && (
-										<SettingsSlider
-											label="Reminder Interval (1-10)"
-											max={10}
-											min={1}
-											onChange={handleFocusChainIntervalChange}
-											step={1}
-											value={focusChainSettings?.remindClineInterval || 6}
-											valueWidth="w-6"
-										/>
-									)}
-								</div>
+								<FeatureRow
+									checked={featureState[feature.stateKey]}
+									description={feature.description}
+									id={feature.id}
+									isVisible={featureVisibility[feature.stateKey] ?? true}
+									key={feature.id}
+									label={feature.label}
+									onChange={(checked) => updateSetting(feature.settingKey, checked)}
+								/>
 							))}
+							<div className="space-y-2 py-3">
+								<Label className="text-sm font-medium text-foreground">Auto Compact Strategy</Label>
+								<p className="text-xs text-muted-foreground">Controls how auto compaction rewrites context.</p>
+								<Select
+									disabled={!useAutoCondense}
+									onValueChange={(value) => updateSetting("compactionStrategy", value)}
+									value={compactionStrategy ?? "agentic"}>
+									<SelectTrigger className="w-full">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="basic">Basic</SelectItem>
+										<SelectItem value="agentic">Agentic</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+							<FeatureRow
+								checked={webSearchEnabled}
+								description="Let the model search the web when the selected provider and model support it. Applies to new tasks."
+								label="Web Search"
+								onChange={(checked) => updateSetting("webSearchEnabled", checked)}
+							/>
 						</div>
 					</div>
 
@@ -331,32 +229,11 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
+									id={feature.id}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
-									onChange={(checked) => handleFeatureChange(feature, checked)}
-								/>
-							))}
-						</div>
-					</div>
-
-					{/* Experimental features */}
-					<div>
-						<div className="text-xs font-medium uppercase tracking-wider mb-3 text-warning/80">Experimental</div>
-						<div
-							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50 w-full"
-							id="experimental-features">
-							{experimentalFeatures.map((feature) => (
-								<FeatureRow
-									checked={featureState[feature.stateKey]}
-									description={feature.description}
-									disabled={feature.id === "yolo" && isYoloRemoteLocked}
-									isRemoteLocked={feature.id === "yolo" && isYoloRemoteLocked}
-									isVisible={featureVisibility[feature.stateKey] ?? true}
-									key={feature.id}
-									label={feature.label}
-									onChange={(checked) => handleFeatureChange(feature, checked)}
-									remoteTooltip="This setting is managed by your organization's remote configuration"
+									onChange={(checked) => updateSetting(feature.settingKey, checked)}
 								/>
 							))}
 						</div>
@@ -372,10 +249,11 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
+									id={feature.id}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
-									onChange={(checked) => handleFeatureChange(feature, checked)}
+									onChange={(checked) => updateSetting(feature.settingKey, checked)}
 								/>
 							))}
 

@@ -14,6 +14,7 @@ import ViewHeader from "../common/ViewHeader"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { updateSetting } from "../settings/utils/settingsHandlers"
 import { AccountWelcomeView } from "./AccountWelcomeView"
+import { ClinePassCard } from "./ClinePassCard"
 import { CreditBalance } from "./CreditBalance"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import { convertProtoUsageTransactions, getClineUris, getMainRole } from "./helpers"
@@ -65,7 +66,7 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 	)
 }
 
-export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, clineEnv }: ClineAccountViewProps) => {
+const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, clineEnv }: ClineAccountViewProps) => {
 	const { email, displayName, appBaseUrl, uid } = clineUser
 	const { remoteConfigSettings, environment } = useExtensionState()
 
@@ -374,6 +375,8 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 					isLoading={isLoading}
 					lastFetchTime={lastFetchTime}
 				/>
+
+				<ClinePassCard />
 
 				<VSCodeDivider className="mt-6 mb-3 w-full" />
 

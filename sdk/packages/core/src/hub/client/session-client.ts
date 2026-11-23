@@ -1,13 +1,24 @@
 import type * as LlmsProviders from "@cline/llms";
 import type {
+	AgendaAutomationPolicy,
+	AgendaTaskListInput,
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
 	ChatStartSessionResponse,
 	ChatTurnResult,
+	HubCommandInput,
+	HubCommandOutput,
 	HubEventEnvelope,
+	HubSessionSearchHit,
+	HubTaskCreateInput,
+	HubTaskUpdateInput,
+	HubTypedCommandName,
 	TeamProgressProjectionEvent,
 } from "@cline/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
+import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { NodeHubClient } from "../client";
 
 type ScheduleClientRecord = Record<string, unknown> & {
@@ -28,6 +39,8 @@ export interface HubSessionClientOptions {
 export interface HubSessionRow {
 	sessionId: string;
 	parentSessionId?: string;
+	/** Hub runtime status when the server provided one. */
+	status?: string;
 	metadata?: Record<string, unknown>;
 	messagesPath?: string;
 }
@@ -56,7 +69,7 @@ export interface HubRestoreResponse {
 		manifestPath: string;
 		messagesPath: string;
 	};
-	messages?: LlmsProviders.Message[];
+	messages?: LlmsProviders.MessageWithMetadata[];
 	checkpoint: CheckpointEntry;
 }
 
@@ -96,6 +109,7 @@ function extractSessionRow(
 			typeof metadata?.parentSessionId === "string"
 				? metadata.parentSessionId
 				: undefined,
+		status: typeof session.status === "string" ? session.status : undefined,
 		messagesPath:
 			typeof metadata?.messagesPath === "string"
 				? metadata.messagesPath
@@ -204,16 +218,34 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 				eventType: "runtime.chat.text_delta",
 				payload,
 			};
+		case "assistant.media":
+			return {
+				sessionId,
+				eventType: "runtime.chat.media",
+				payload,
+			};
 		case "usage.updated":
 			return {
 				sessionId,
 				eventType: "runtime.chat.usage",
 				payload,
 			};
+		case "session.notice":
+			return {
+				sessionId,
+				eventType: "runtime.chat.notice",
+				payload,
+			};
 		case "tool.started":
 			return {
 				sessionId,
 				eventType: "runtime.chat.tool_call_start",
+				payload,
+			};
+		case "tool.updated":
+			return {
+				sessionId,
+				eventType: "runtime.chat.tool_call_update",
 				payload,
 			};
 		case "tool.finished":
@@ -253,9 +285,8 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 
 export class HubSessionClient {
 	private readonly client: NodeHubClient;
-	private metadataApplied = false;
 
-	constructor(private readonly options: HubSessionClientOptions) {
+	constructor(options: HubSessionClientOptions) {
 		this.client = new NodeHubClient({
 			url: options.address,
 			authToken: options.authToken,
@@ -264,25 +295,24 @@ export class HubSessionClient {
 			displayName: options.displayName ?? "hub session client",
 			workspaceRoot: options.workspaceRoot,
 			cwd: options.cwd,
+			metadata: options.metadata,
 		});
-	}
-
-	private async ensureMetadataApplied(): Promise<void> {
-		if (this.metadataApplied || !this.options.metadata) {
-			if (!this.options.metadata) {
-				await this.client.connect();
-			}
-			return;
-		}
-		await this.client.connect();
-		await this.client.command("client.update", {
-			metadata: this.options.metadata,
-		});
-		this.metadataApplied = true;
 	}
 
 	async connect(): Promise<void> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
+	}
+
+	private async taskCommand<TCommand extends HubTypedCommandName>(
+		command: TCommand,
+		input: HubCommandInput<TCommand>,
+	): Promise<HubCommandOutput<TCommand>> {
+		await this.client.connect();
+		const reply = await this.client.command(
+			command,
+			input as unknown as Record<string, unknown>,
+		);
+		return (reply.payload ?? {}) as HubCommandOutput<TCommand>;
 	}
 
 	close(): void {
@@ -296,7 +326,7 @@ export class HubSessionClient {
 	async startRuntimeSession(
 		request: ChatStartSessionRequest,
 	): Promise<ChatStartSessionResponse> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("session.create", {
 			workspaceRoot: request.workspaceRoot,
 			cwd: request.cwd,
@@ -315,6 +345,7 @@ export class HubSessionClient {
 				enableSpawnAgent: request.enableSpawn !== false,
 				enableAgentTeams: request.enableTeams !== false,
 				disableMcpSettingsTools: request.disableMcpSettingsTools,
+				agentPluginPaths: request.agentPluginPaths,
 				missionLogIntervalSteps: request.missionStepInterval,
 				missionLogIntervalMs: request.missionTimeIntervalMs,
 			},
@@ -366,7 +397,7 @@ export class HubSessionClient {
 		request: ChatRunTurnRequest,
 		options?: { timeoutMs?: number | null },
 	): Promise<{ result?: ChatTurnResult }> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command(
 			"session.send_input",
 			{
@@ -385,13 +416,13 @@ export class HubSessionClient {
 	}
 
 	async stopRuntimeSession(sessionId: string): Promise<{ applied: boolean }> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		await this.client.command("session.detach", { sessionId }, sessionId);
 		return { applied: true };
 	}
 
 	async abortRuntimeSession(sessionId: string): Promise<{ applied: boolean }> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		await this.client.command("run.abort", { sessionId }, sessionId);
 		return { applied: true };
 	}
@@ -400,7 +431,7 @@ export class HubSessionClient {
 		sessionId: string;
 		metadata?: Record<string, unknown>;
 	}): Promise<{ updated: boolean }> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		await this.client.command(
 			"session.update",
 			{
@@ -413,21 +444,27 @@ export class HubSessionClient {
 	}
 
 	async getSession(sessionId: string): Promise<HubSessionRow | undefined> {
-		await this.ensureMetadataApplied();
-		const reply = await this.client.command(
-			"session.get",
-			undefined,
-			sessionId,
-		);
+		await this.client.connect();
+		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
+		try {
+			reply = await this.client.command("session.get", undefined, sessionId);
+		} catch (error) {
+			if (isSessionNotFoundError(error)) {
+				return undefined;
+			}
+			throw error;
+		}
 		return extractSessionRow(reply.payload);
 	}
 
-	async readMessages(sessionId: string): Promise<LlmsProviders.Message[]> {
+	async readMessages(
+		sessionId: string,
+	): Promise<LlmsProviders.MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
 		}
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command(
 			"session.messages",
 			{ sessionId: target },
@@ -437,7 +474,9 @@ export class HubSessionClient {
 			throw new Error(hubReplyErrorMessage(reply, "session.messages"));
 		}
 		const messages = reply.payload?.messages;
-		return Array.isArray(messages) ? (messages as LlmsProviders.Message[]) : [];
+		return Array.isArray(messages)
+			? (messages as LlmsProviders.MessageWithMetadata[])
+			: [];
 	}
 
 	async restore(input: HubRestoreRequest): Promise<HubRestoreResponse> {
@@ -449,7 +488,7 @@ export class HubSessionClient {
 		if (restoreMessages && !input.config) {
 			throw new Error("config is required when restore.messages is true");
 		}
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const request = input.config;
 		const reply = await this.client.command(
 			"session.restore",
@@ -475,6 +514,7 @@ export class HubSessionClient {
 								enableSpawnAgent: request.enableSpawn !== false,
 								enableAgentTeams: request.enableTeams !== false,
 								disableMcpSettingsTools: request.disableMcpSettingsTools,
+								agentPluginPaths: request.agentPluginPaths,
 								missionLogIntervalSteps: request.missionStepInterval,
 								missionLogIntervalMs: request.missionTimeIntervalMs,
 							},
@@ -535,7 +575,7 @@ export class HubSessionClient {
 	}
 
 	async listSessions(input?: { limit?: number }): Promise<HubSessionRow[]> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("session.list", {
 			limit: input?.limit ?? 200,
 		});
@@ -547,11 +587,23 @@ export class HubSessionClient {
 			.filter((row): row is HubSessionRow => Boolean(row?.sessionId));
 	}
 
+	async searchSessions(input: {
+		query: string;
+		limit?: number;
+		workspaceRoot?: string;
+	}): Promise<HubSessionSearchHit[]> {
+		await this.client.connect();
+		const reply = await this.client.command("session.search", input);
+		return Array.isArray(reply.payload?.hits)
+			? (reply.payload.hits as unknown as HubSessionSearchHit[])
+			: [];
+	}
+
 	async deleteSession(
 		sessionId: string,
 		deleteCheckpointRefs = true,
 	): Promise<boolean> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("session.delete", {
 			sessionId,
 			deleteCheckpointRefs,
@@ -565,7 +617,7 @@ export class HubSessionClient {
 		reason?: string;
 		responderClientId?: string;
 	}): Promise<void> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		await this.client.command("approval.respond", {
 			approvalId: input.approvalId,
 			approved: input.approved,
@@ -591,7 +643,7 @@ export class HubSessionClient {
 			}
 			handlers.onEvent?.(mapped);
 		});
-		void this.ensureMetadataApplied().catch((error) => {
+		void this.client.connect().catch((error) => {
 			handlers.onError?.(
 				error instanceof Error ? error : new Error(String(error)),
 			);
@@ -611,7 +663,7 @@ export class HubSessionClient {
 				event.payload as unknown as TeamProgressProjectionEvent,
 			);
 		});
-		void this.ensureMetadataApplied().catch((error) => {
+		void this.client.connect().catch((error) => {
 			handlers.onError?.(
 				error instanceof Error ? error : new Error(String(error)),
 			);
@@ -622,7 +674,7 @@ export class HubSessionClient {
 	async createSchedule(
 		input: Record<string, unknown>,
 	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.create", input);
 		return reply.payload?.schedule as ScheduleClientRecord | undefined;
 	}
@@ -630,7 +682,7 @@ export class HubSessionClient {
 	async listSchedules(_input?: {
 		limit?: number;
 	}): Promise<ScheduleClientRecord[]> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.list");
 		return Array.isArray(reply.payload?.schedules)
 			? (reply.payload?.schedules as ScheduleClientRecord[])
@@ -640,7 +692,7 @@ export class HubSessionClient {
 	async getSchedule(
 		scheduleId: string,
 	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.get", { scheduleId });
 		return reply.payload?.schedule as ScheduleClientRecord | undefined;
 	}
@@ -649,7 +701,7 @@ export class HubSessionClient {
 		scheduleId: string,
 		input: Record<string, unknown>,
 	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.update", {
 			scheduleId,
 			...input,
@@ -660,7 +712,7 @@ export class HubSessionClient {
 	async pauseSchedule(
 		scheduleId: string,
 	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.disable", { scheduleId });
 		return reply.payload?.schedule as ScheduleClientRecord | undefined;
 	}
@@ -668,13 +720,13 @@ export class HubSessionClient {
 	async resumeSchedule(
 		scheduleId: string,
 	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.enable", { scheduleId });
 		return reply.payload?.schedule as ScheduleClientRecord | undefined;
 	}
 
 	async deleteSchedule(scheduleId: string): Promise<boolean> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.delete", { scheduleId });
 		return reply.payload?.deleted === true;
 	}
@@ -682,7 +734,7 @@ export class HubSessionClient {
 	async triggerScheduleNow(
 		scheduleId: string,
 	): Promise<Record<string, unknown> | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.trigger", { scheduleId });
 		return reply.payload?.execution as Record<string, unknown> | undefined;
 	}
@@ -691,7 +743,7 @@ export class HubSessionClient {
 		scheduleId: string,
 		limit?: number,
 	): Promise<Array<Record<string, unknown>>> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.list_executions", {
 			scheduleId,
 			limit,
@@ -702,7 +754,7 @@ export class HubSessionClient {
 	}
 
 	async getScheduleStats(): Promise<Record<string, unknown> | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.stats");
 		return reply.payload?.stats as Record<string, unknown> | undefined;
 	}
@@ -710,7 +762,7 @@ export class HubSessionClient {
 	async getActiveScheduledExecutions(): Promise<
 		Array<Record<string, unknown>>
 	> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.active");
 		return Array.isArray(reply.payload?.executions)
 			? (reply.payload?.executions as Array<Record<string, unknown>>)
@@ -720,10 +772,75 @@ export class HubSessionClient {
 	async getUpcomingScheduledRuns(
 		limit?: number,
 	): Promise<Array<Record<string, unknown>>> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.upcoming", { limit });
 		return Array.isArray(reply.payload?.upcoming)
 			? (reply.payload?.upcoming as Array<Record<string, unknown>>)
 			: [];
+	}
+
+	async createTask(input: HubTaskCreateInput): Promise<AgendaTaskRecord> {
+		const result = await this.taskCommand("task.create", input);
+		return result.task;
+	}
+
+	async listTasks(
+		input: AgendaTaskListInput = {},
+	): Promise<AgendaTaskRecord[]> {
+		const result = await this.taskCommand("task.list", input);
+		return Array.isArray(result.tasks) ? result.tasks : [];
+	}
+
+	async getTask(taskId: string): Promise<AgendaTaskRecord | undefined> {
+		const result = await this.taskCommand("task.get", { taskId });
+		return result.task;
+	}
+
+	async updateTask(input: HubTaskUpdateInput): Promise<AgendaTaskRecord> {
+		const result = await this.taskCommand("task.update", input);
+		return result.task;
+	}
+
+	async approveTask(
+		taskId: string,
+		expectedRevision: number,
+	): Promise<AgendaTaskRecord> {
+		const result = await this.taskCommand("task.approve", {
+			taskId,
+			expectedRevision,
+		});
+		return result.task;
+	}
+
+	async cancelTask(
+		taskId: string,
+		expectedRevision: number,
+		reason?: string,
+	): Promise<AgendaTaskRecord> {
+		const result = await this.taskCommand("task.cancel", {
+			taskId,
+			reason,
+			expectedRevision,
+		});
+		return result.task;
+	}
+
+	async runTask(
+		taskId: string,
+		expectedRevision: number,
+	): Promise<{ task: AgendaTaskRecord; run?: AgendaTaskRunRecord }> {
+		return await this.taskCommand("task.run", { taskId, expectedRevision });
+	}
+
+	async getTaskAutomation(): Promise<AgendaAutomationPolicy> {
+		const result = await this.taskCommand("task.automation.get", {});
+		return result.policy;
+	}
+
+	async setTaskAutomation(
+		policy: Omit<AgendaAutomationPolicy, "updatedAt">,
+	): Promise<AgendaAutomationPolicy> {
+		const result = await this.taskCommand("task.automation.set", { policy });
+		return result.policy;
 	}
 }

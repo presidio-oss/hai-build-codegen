@@ -3,17 +3,34 @@
  */
 
 import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
+import { IHaiClineTask } from "@shared/hai-task"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
-import { ButtonActionType } from "../shared/buttonConfig"
+import type { ButtonActionType, SubmittingButtonActionType } from "../shared/buttonConfig"
 
-/**
- * Main ChatView component props
- */
-export interface ChatViewProps {
-	isHidden: boolean
-	showAnnouncement: boolean
-	hideAnnouncement: () => void
-	showHistoryView: () => void
+export interface DraftSnapshot {
+	revision: number
+	text: string
+	activeQuote: string | null
+	images: string[]
+	files: string[]
+}
+
+export type ButtonActionInvocation =
+	| { type: SubmittingButtonActionType; draft: DraftSnapshot }
+	| { type: Exclude<ButtonActionType, SubmittingButtonActionType>; draft?: never }
+
+export interface PendingUserMessage {
+	message: ClineMessage
+	afterTs: number
+}
+
+export interface PendingResponse {
+	/** Locally unique submission id, used to avoid an older RPC clearing newer state. */
+	id: number
+	/** TurnState sequence observed when the RPC was sent. */
+	turnStateSeq: number | undefined
+	/** Raw backend message count observed when the RPC was sent (legacy fallback). */
+	messageCount: number
 }
 
 /**
@@ -31,6 +48,8 @@ export interface ChatState {
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
 	selectedFiles: string[]
 	setSelectedFiles: React.Dispatch<React.SetStateAction<string[]>>
+	getDraftSnapshot: () => DraftSnapshot
+	consumeDraftSnapshot: (draft: DraftSnapshot) => void
 	sendingDisabled: boolean
 	setSendingDisabled: React.Dispatch<React.SetStateAction<boolean>>
 	enableButtons: boolean
@@ -41,6 +60,10 @@ export interface ChatState {
 	setSecondaryButtonText: React.Dispatch<React.SetStateAction<string | undefined>>
 	expandedRows: Record<number, boolean>
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
+	pendingUserMessage: PendingUserMessage | undefined
+	setPendingUserMessage: React.Dispatch<React.SetStateAction<PendingUserMessage | undefined>>
+	pendingResponse: PendingResponse | undefined
+	setPendingResponse: React.Dispatch<React.SetStateAction<PendingResponse | undefined>>
 
 	// Refs
 	textAreaRef: React.RefObject<HTMLTextAreaElement>
@@ -57,7 +80,6 @@ export interface ChatState {
 	resetState: () => void
 
 	// Scroll-related state (will be moved to scroll hook)
-	showScrollToBottom?: boolean
 	isAtBottom?: boolean
 	pendingScrollToMessage?: number | null
 }
@@ -66,10 +88,14 @@ export interface ChatState {
  * Message handlers interface
  */
 export interface MessageHandlers {
-	executeButtonAction: (action: ButtonActionType, text?: string, images?: string[], files?: string[]) => Promise<void>
+	errorRecoveryAvailable: boolean
+	recoveryActionInFlight: boolean
+	compactTask: () => Promise<boolean>
+	executeButtonAction: (invocation: ButtonActionInvocation) => Promise<boolean>
 	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
 	handleTaskCloseButtonClick: () => void
-	startNewTask: () => Promise<void>
+	retryFailedRequest: () => Promise<boolean>
+	startNewTask: (source?: "chat_new_task" | "navbar") => Promise<boolean>
 }
 
 /**
@@ -82,63 +108,15 @@ export interface ScrollBehavior {
 	scrollToBottomSmooth: () => void
 	scrollToBottomAuto: () => void
 	scrollToMessage: (messageIndex: number) => void
-	toggleRowExpansion: (ts: number) => void
+	toggleRowExpansion: (ts: number, options?: { preserveAutoScroll?: boolean }) => void
 	handleRowHeightChange: (isTaller: boolean) => void
-	showScrollToBottom: boolean
-	setShowScrollToBottom: React.Dispatch<React.SetStateAction<boolean>>
+	handleLastRowContentChange: () => void
 	isAtBottom: boolean
 	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
 	pendingScrollToMessage: number | null
 	setPendingScrollToMessage: React.Dispatch<React.SetStateAction<number | null>>
 	scrolledPastUserMessage: ClineMessage | null
 	handleRangeChanged: (range: ListRange) => void
-}
-
-/**
- * Button state interface
- */
-export interface ButtonState {
-	enableButtons: boolean
-	primaryButtonText: string | undefined
-	secondaryButtonText: string | undefined
-}
-
-/**
- * Input state interface
- */
-export interface InputState {
-	inputValue: string
-	selectedImages: string[]
-	selectedFiles: string[]
-	activeQuote: string | null
-	isTextAreaFocused: boolean
-}
-
-/**
- * Task section props
- */
-export interface TaskSectionProps {
-	task: ClineMessage
-	messages: ClineMessage[]
-	scrollBehavior: ScrollBehavior
-	buttonState: ButtonState
-	messageHandlers: MessageHandlers
-	chatState: ChatState
-	apiMetrics: {
-		totalTokensIn: number
-		totalTokensOut: number
-		totalCacheWrites?: number
-		totalCacheReads?: number
-		totalCost: number
-	}
-	lastApiReqTotalTokens?: number
-	selectedModelInfo: {
-		supportsPromptCache: boolean
-		supportsImages: boolean
-	}
-	isStreaming: boolean
-	clineAsk?: ClineAsk
-	modifiedMessages: ClineMessage[]
 }
 
 /**
@@ -152,21 +130,8 @@ export interface WelcomeSectionProps {
 	version: string
 	taskHistory: any[]
 	shouldShowQuickWins: boolean
-}
 
-/**
- * Input section props
- */
-export interface InputSectionProps {
-	chatState: ChatState
-	messageHandlers: MessageHandlers
-	textAreaRef: React.RefObject<HTMLTextAreaElement>
-	onFocusChange: (isFocused: boolean) => void
-	onInputChange: (value: string) => void
-	onQuoteChange: (quote: string | null) => void
-	onImagesChange: (images: string[]) => void
-	onFilesChange: (files: string[]) => void
-	placeholderText: string
-	shouldDisableFilesAndImages: boolean
-	selectFilesAndImages: () => Promise<void>
+	// TAG:HAI
+	onTaskSelect: (task: IHaiClineTask) => void
+	showHaiTaskListView: () => void
 }

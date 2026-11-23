@@ -1,8 +1,18 @@
 export type {
 	AgentRunResult,
 	AgentRunStatus,
+	FeatureFlag,
+	FeatureFlagPayload,
+	FeatureFlagsAndPayloads,
+	FeatureFlagsContext,
+	FeatureFlagsSettings,
+	IFeatureFlagsProvider,
 	WorkspaceInfo,
 	WorkspaceManifest,
+} from "@cline/shared";
+export {
+	FEATURE_FLAGS,
+	FeatureFlagDefaultValue,
 } from "@cline/shared";
 export { ClineCore } from "./ClineCore";
 export type {
@@ -13,16 +23,31 @@ export type {
 	RemoteOptions,
 } from "./cline-core/types";
 export type {
+	AgentPluginPackageDiagnostic,
+	AgentPluginPackageDiagnosticScope,
+	AgentPluginPackageLoadReport,
+	AgentPluginPackageManifest,
+	AgentPluginPackageMcpServer,
+	AgentPluginPackageSkill,
+	AgentSkillMetadata,
 	LoadAgentPluginFromPathOptions,
+	LoadAgentPluginPackagesOptions,
+	LoadedAgentPluginPackage,
+	ParsedAgentSkill,
 	ResolveAgentPluginPathsOptions,
 } from "./extensions";
 export {
+	AGENT_PLUGINS_V1_MANIFEST_SCHEMA,
+	AGENT_PLUGINS_V1_MCP_SCHEMA,
 	discoverPluginModulePaths,
 	loadAgentPluginFromPath,
+	loadAgentPluginPackages,
 	loadAgentPluginsFromPaths,
+	parseAgentSkillMarkdown,
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 } from "./extensions";
 export type {
 	CreateInstructionWatcherOptions,
@@ -46,6 +71,7 @@ export type {
 	WorkflowConfig,
 } from "./extensions/config";
 export {
+	combineUserInstructionConfigServices,
 	createRulesConfigDefinition,
 	createSkillsConfigDefinition,
 	createUserInstructionConfigService,
@@ -64,6 +90,7 @@ export {
 export type {
 	BuiltinToolAvailabilityContext,
 	ToolCatalogEntry,
+	ToolClientType,
 } from "./extensions/tools";
 export {
 	getCoreAcpToolNames,
@@ -102,21 +129,47 @@ export type {
 	SubprocessSandboxOptions,
 } from "./runtime/tools/subprocess-sandbox";
 export { SubprocessSandbox } from "./runtime/tools/subprocess-sandbox";
-export type { GlobalSettings } from "./services/global-settings";
+export {
+	FeatureFlagsService,
+	type FeatureFlagsServiceOptions,
+	NoOpFeatureFlagsProvider,
+} from "./services/feature-flags";
+export type {
+	GlobalCompactionMode,
+	GlobalCompactionStrategy,
+	GlobalPlanActMode,
+	GlobalSettings,
+} from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
+	isAgentPluginDisabledGlobally,
+	isAutoUpdateEnabledGlobally,
+	isModelToolEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCompactionModeGlobally,
+	readCompactionStrategyGlobally,
 	readGlobalSettings,
+	readPlanActModeGlobally,
+	readToolAutoApproveGlobally,
+	resolveDisabledAgentPluginNames,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	resolveModelToolSettings,
+	setAutoUpdateEnabledGlobally,
+	setCompactionModeGlobally,
+	setCompactionStrategyGlobally,
+	setDisabledAgentPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
+	setModelToolEnabledGlobally,
+	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
+	setToolAutoApproveGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";

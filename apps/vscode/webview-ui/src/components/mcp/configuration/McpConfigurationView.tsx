@@ -17,7 +17,7 @@ type McpViewProps = {
 }
 
 const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
-	const { remoteConfigSettings, setMcpServers, environment } = useExtensionState()
+	const { remoteConfigSettings, setMcpServers, setMcpMarketplaceCatalog, environment } = useExtensionState()
 	// Show marketplace by default unless remote config explicitly disables it
 	const showMarketplace = remoteConfigSettings?.mcpMarketplaceEnabled !== false
 	const showRemoteServers = remoteConfigSettings?.blockPersonalRemoteMCPServers !== true
@@ -37,9 +37,6 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 		}
 	}, [showMarketplace, showRemoteServers, activeTab])
 
-	// Get setter for MCP marketplace catalog from context
-	const { setMcpMarketplaceCatalog } = useExtensionState()
-
 	useEffect(() => {
 		if (showMarketplace) {
 			McpServiceClient.refreshMcpMarketplace(EmptyRequest.create({}))
@@ -49,19 +46,19 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 				.catch((error) => {
 					console.error("Error refreshing MCP marketplace:", error)
 				})
-
-			McpServiceClient.getLatestMcpServers(EmptyRequest.create({}))
-				.then((response: McpServers) => {
-					if (response.mcpServers) {
-						const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
-						setMcpServers(mcpServers)
-					}
-				})
-				.catch((error) => {
-					console.error("Failed to fetch MCP servers:", error)
-				})
 		}
-	}, [showMarketplace])
+
+		McpServiceClient.getLatestMcpServers(EmptyRequest.create({}))
+			.then((response: McpServers) => {
+				if (response.mcpServers) {
+					const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+					setMcpServers(mcpServers)
+				}
+			})
+			.catch((error) => {
+				console.error("Failed to fetch MCP servers:", error)
+			})
+	}, [setMcpServers, showMarketplace, setMcpMarketplaceCatalog])
 
 	return (
 		<div

@@ -1,7 +1,7 @@
 import type { IHaiStory, IHaiTask } from "@shared/hai-task"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { HaiStory, HaiTask, HaiTaskDataResponse } from "@shared/proto/cline/ui"
-import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
@@ -12,8 +12,9 @@ const activeHaiTaskDataSubscriptions = new Map<string, Set<StreamingResponseHand
 /**
  * Get the current workspace ID
  */
-function getWorkspaceId(): string {
-	return vscode.workspace.workspaceFolders?.[0]?.uri.toString() || "default"
+async function getWorkspaceId(): Promise<string> {
+	const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+	return paths[0] || "default"
 }
 
 /**
@@ -29,7 +30,7 @@ export async function subscribeToHaiTaskData(
 	responseStream: StreamingResponseHandler<HaiTaskDataResponse>,
 	requestId?: string,
 ): Promise<void> {
-	const workspaceId = getWorkspaceId()
+	const workspaceId = await getWorkspaceId()
 	let workspaceSubscriptions = activeHaiTaskDataSubscriptions.get(workspaceId)
 	if (!workspaceSubscriptions) {
 		workspaceSubscriptions = new Set()
@@ -81,7 +82,7 @@ export async function sendHaiTaskDataUpdate(data: {
 	folderPath: string
 	timestamp: string
 }): Promise<void> {
-	const workspaceId = getWorkspaceId()
+	const workspaceId = await getWorkspaceId()
 	const workspaceSubscriptions = activeHaiTaskDataSubscriptions.get(workspaceId)
 
 	if (!workspaceSubscriptions || workspaceSubscriptions.size === 0) {

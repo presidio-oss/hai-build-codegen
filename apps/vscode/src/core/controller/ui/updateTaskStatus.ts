@@ -1,9 +1,10 @@
 import type { IHaiStory } from "@shared/hai-task"
 import type { UpdateTaskStatusRequest } from "@shared/proto/cline/ui"
 import { UpdateTaskStatusResponse } from "@shared/proto/cline/ui"
+import { ShowMessageType } from "@shared/proto/host/window"
 import * as fs from "fs/promises"
 import * as path from "path"
-import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 import { sendHaiTaskDataUpdate } from "./subscribeToHaiTaskData"
@@ -140,7 +141,10 @@ export async function updateTaskStatus(
 		await fs.writeFile(prdFeatureFilePath, JSON.stringify(prdFeatureJson, null, 2), "utf-8")
 
 		// Show success message with buttons option (new API)
-		await vscode.window.showInformationMessage(`Successfully marked task as ${status.toLowerCase()}.`, {})
+		HostProvider.window.showMessage({
+			type: ShowMessageType.INFORMATION,
+			message: `Successfully marked task as ${status.toLowerCase()}.`,
+		})
 
 		// Read all stories from all PRD files and broadcast via gRPC stream
 		const stories = await readAllHaiStories(folderPath)
@@ -157,7 +161,10 @@ export async function updateTaskStatus(
 		})
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
-		await vscode.window.showErrorMessage(`Failed to mark task as ${status.toLowerCase()}: ${errorMessage}`, {})
+		HostProvider.window.showMessage({
+			type: ShowMessageType.ERROR,
+			message: `Failed to mark task as ${status.toLowerCase()}: ${errorMessage}`,
+		})
 
 		return UpdateTaskStatusResponse.create({
 			success: false,
