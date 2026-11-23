@@ -19,6 +19,7 @@ export default defineConfig({
 	mocha: {
 		ui: "bdd",
 		timeout: 20000, // Maximum time (in ms) that a test can run before failing
+		retries: process.env.CI ? 2 : 0, // Editor-tab tests are flaky on Windows runners
 		/** Set up alias path resolution during tests
 		 * @See {@link file://./test-setup.js}
 		 */
