@@ -1,5 +1,11 @@
 # hai-build-code-generator
 
+## 3.14.0
+
+### Minor Changes
+
+- merge from cline and BUN based build
+
 ## 3.13.7
 
 ### Patch Changes
